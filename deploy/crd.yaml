@@ -11,3 +11,14 @@ spec:
     singular: integration
   scope: Namespaced
   version: v1alpha1
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            service:
+              type: string
+            integration:
+              type: string
+            enabled:
+              type: bool
