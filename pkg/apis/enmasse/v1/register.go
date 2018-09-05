@@ -1,4 +1,4 @@
-package v1alpha1
+package v1
 
 import (
 	sdkK8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	Version         = "v1alpha1"
-	GroupName       = "integreatly.org"
-	IntegrationKind = "Integration"
+	Version     = "v1"
+	GroupName   = "enmasse.io"
+	AddressKind = "Address"
 )
 
 var (
@@ -28,8 +28,8 @@ func init() {
 // addKnownTypes adds the set of types defined in this package to the supplied scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Integration{},
-		&IntegrationList{},
+		&AddressSpace{},
+		&AddressSpaceList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
