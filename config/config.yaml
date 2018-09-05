@@ -1,0 +1,3 @@
+apiVersion: integration.integreatly.org/v1alpha1
+kind: Integration
+projectName: integration-controller
