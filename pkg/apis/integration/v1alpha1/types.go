@@ -22,8 +22,21 @@ type Integration struct {
 }
 
 type IntegrationSpec struct {
+	Service         string `json:"type"`
+	IntegrationType string `json:"integrationType"`
+	Enabled         bool   `json:"enabled"`
 	// Fill me
 }
 type IntegrationStatus struct {
 	// Fill me
+	Phase Phase `json:"phase"`
 }
+
+type Phase string
+
+const (
+	PhaseNone        Phase = ""
+	PhaseAccepted    Phase = "accepted"
+	PhaseIntegrating Phase = "integrating"
+	PhaseComplete    Phase = "complete"
+)

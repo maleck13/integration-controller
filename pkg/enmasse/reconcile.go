@@ -20,7 +20,9 @@ func (r *Reconciler) GVK() schema.GroupVersionKind {
 
 }
 
-func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
+func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 	logrus.Info("handling object ", event.Object.GetObjectKind().GroupVersionKind().String())
+	// check for a fuse cr in the same namespace.
+	// if present create an integration resource
 	return nil
 }
