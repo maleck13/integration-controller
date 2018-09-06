@@ -21,4 +21,4 @@ spec:
             integration:
               type: string
             enabled:
-              type: bool
+              type: boolean

@@ -184,7 +184,21 @@
   version = "1.0.1"
 
 [[projects]]
-  branch = "master"
+  name = "github.com/openshift/api"
+  packages = ["route/v1"]
+  revision = "0d921e363e951d89f583292c60d013c318df64dc"
+  version = "v3.9.0"
+
+[[projects]]
+  name = "github.com/openshift/client-go"
+  packages = [
+    "route/clientset/versioned/scheme",
+    "route/clientset/versioned/typed/route/v1"
+  ]
+  revision = "1fa528d3be060e4c7178eb69e76d37cf7e699e3c"
+  version = "v3.9.0"
+
+[[projects]]
   name = "github.com/operator-framework/operator-sdk"
   packages = [
     "pkg/k8sclient",
@@ -193,7 +207,8 @@
     "pkg/util/k8sutil",
     "version"
   ]
-  revision = "ac46cd787d8c3a172a0e196cab04b3497eaed663"
+  revision = "cb89692cdd145f084798749c16baaf44a6e62cac"
+  version = "v0.0.6"
 
 [[projects]]
   branch = "master"
@@ -521,6 +536,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a5e90b5edf302a6f1bbde644356233a2e2bc05c8717f9f148712fa2af1b56c5a"
+  inputs-digest = "31b7dd90bcdb0142ae1b11482629f410f5aa55df3bb4c73801759ec8063cb3cf"
   solver-name = "gps-cdcl"
   solver-version = 1
