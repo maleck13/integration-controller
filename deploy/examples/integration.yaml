@@ -1,0 +1,8 @@
+apiVersion: "integreatly.org/v1alpha1"
+kind: "Integration"
+metadata:
+  generateName: "fuse-enmasse-"
+spec:
+  service: fuse
+  integrationType: amqp
+  enabled: false
