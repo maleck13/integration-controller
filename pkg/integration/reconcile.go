@@ -17,6 +17,10 @@ type Reconciler struct {
 	fuse *Fuse
 }
 
+func NewReconciler(fuse *Fuse) *Reconciler {
+	return &Reconciler{fuse: fuse}
+}
+
 func (h *Reconciler) GVK() schema.GroupVersionKind {
 	return schema.GroupVersionKind{
 		Version: v1alpha1.Version,
@@ -26,25 +30,29 @@ func (h *Reconciler) GVK() schema.GroupVersionKind {
 }
 
 func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
-	logrus.Info("handling integration ")
+
 	integration, ok := event.Object.(*v1alpha1.Integration)
+	logrus.Info("handling integration ", integration.Name, integration.Spec, event)
 	if !ok {
 		return errors.New("expected a integration object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
 	}
 	if integration.Status.Phase == v1alpha1.PhaseNone {
-		integration, err := h.Accept(ctx, integration)
-		if controllerErr.IsNotEnabledErr(err) {
-			logrus.Debug("integration is not enabled ", integration.Name, "doing nothing")
+		ic, err := h.Accept(ctx, integration)
+		if err != nil && controllerErr.IsNotEnabledErr(err) {
+			logrus.Debug("integration is not enabled ", integration.Name, " doing nothing")
 			return nil
 		}
 		if err != nil {
 			return errors.Wrap(err, "failed to accept new integration")
 		}
 
-		return sdk.Update(integration)
+		return sdk.Update(ic)
 	}
 	switch integration.Spec.Service {
 	case "fuse":
+		if event.Deleted {
+			return h.fuse.DisIntegrate(ctx, integration)
+		}
 		return h.fuse.Integrate(ctx, integration)
 	default:
 		return errors.New("unknown integration type " + integration.Spec.Service)
@@ -56,6 +64,9 @@ func (h *Reconciler) Accept(ctx context.Context, integration *v1alpha1.Integrati
 	ic := integration.DeepCopy()
 	if !ic.Spec.Enabled {
 		return nil, &controllerErr.NotEnabledErr{}
+	}
+	if err := v1alpha1.AddFinalizer(integration, v1alpha1.Finalizer); err != nil {
+		return nil, errors.Wrap(err, "failed to accept integration could not add finalizer")
 	}
 	ic.Status.Phase = v1alpha1.PhaseAccepted
 	return ic, nil

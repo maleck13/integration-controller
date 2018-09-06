@@ -7,12 +7,15 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/integr8ly/integration-controller/pkg/fuse"
+
 	"github.com/integr8ly/integration-controller/pkg/enmasse"
 
 	"github.com/integr8ly/integration-controller/pkg/integration"
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
 
 	"github.com/integr8ly/integration-controller/pkg/dispatch"
+	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -63,8 +66,20 @@ func main() {
 	}
 
 	k8Client := k8sclient.GetKubeClient()
+
+	routeClient, err := routev1.NewForConfig(k8sclient.GetKubeConfig())
+	if err != nil {
+		panic(err)
+	}
+
+	// enmasseService
+	enmasseService := enmasse.NewService(k8Client, routeClient.Routes(namespace))
+	// fuse service
+	fuseService := fuse.NewService()
+	fuseIntegrationReconciler := integration.NewFuse(enmasseService, fuseService)
+	integrationReconciler := integration.NewReconciler(fuseIntegrationReconciler)
 	mainHandler := dispatch.NewHandler(k8Client)
-	mainHandler.(*dispatch.Handler).AddHandler(&integration.Reconciler{})
+	mainHandler.(*dispatch.Handler).AddHandler(integrationReconciler)
 	mainHandler.(*dispatch.Handler).AddHandler(&enmasse.Reconciler{})
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 
