@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// enmasseService
-	enmasseService := enmasse.NewService(k8Client, routeClient.Routes(namespace))
+	enmasseService := enmasse.NewService(k8Client, routeClient.Routes(namespace), namespace)
 	// fuse service
 	fuseService := fuse.NewService()
 	fuseIntegrationReconciler := integration.NewFuse(enmasseService, fuseService)

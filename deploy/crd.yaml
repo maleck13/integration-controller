@@ -22,3 +22,5 @@ spec:
               type: string
             enabled:
               type: boolean
+            metaData:
+              type: object
