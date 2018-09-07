@@ -6,3 +6,6 @@ spec:
   service: fuse
   integrationType: amqp
   enabled: false
+  metaData:
+    realm: "John-integration-messaging-service"
+    messagingHost : "messaging.john-integration-messaging-service.svc:5672"

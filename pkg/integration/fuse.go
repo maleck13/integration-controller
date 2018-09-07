@@ -63,12 +63,19 @@ func (f *Fuse) removeAMQPIntegration(ctx context.Context, integration *v1alpha1.
 
 func (f *Fuse) addAMQPIntegration(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
 	ic := integration.DeepCopy()
+	realm := ic.Spec.Realm
+	if realm == "" {
+		return nil, errors.New("missing realm in metadata")
+	}
+	logrus.Debug("integration metaData ", ic.Spec.Realm)
 	//need to avoid creating users so need determinstic user name
-	u, err := f.enmasseService.CreateUser(integration.Name)
+	u, err := f.enmasseService.CreateUser(integration.Name, realm)
 	if err != nil {
 		return nil, errors.Wrap(err, "integration failed. Could not generate new user in enmasse keycloak")
 	}
-	f.fuseService.AddAMQPConnection(u.UserName, u.Password, "")
+	if err := f.fuseService.AddAMQPConnection(u.UserName, u.Password, integration.Spec.MessagingHost); err != nil {
+		return nil, err
+	}
 	ic.Status.Phase = v1alpha1.PhaseComplete
 	return ic, nil
 }

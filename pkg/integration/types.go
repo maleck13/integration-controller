@@ -7,5 +7,5 @@ type FuseService interface {
 }
 
 type EnMasseService interface {
-	CreateUser(userName string) (*v1alpha1.User, error)
+	CreateUser(userName, realm string) (*v1alpha1.User, error)
 }
