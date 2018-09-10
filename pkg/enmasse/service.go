@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pborman/uuid"
+
 	errors2 "github.com/integr8ly/integration-controller/pkg/errors"
 
 	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
@@ -54,8 +56,10 @@ func (s *Service) CreateUser(userName, realm string) (*v1alpha1.User, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to login to enmasse keycloak")
 	}
-	u, err := createUser(host, authToken, realm, userName, pass)
+	userPass := uuid.New()
+	u, err := createUser(host, authToken, realm, userName, userPass)
 	if err != nil && errors2.IsAlreadyExistsErr(err) {
+		logrus.Info("RETURNING USER")
 		return &v1alpha1.User{Password: pass, UserName: userName}, nil
 	}
 	if err != nil {

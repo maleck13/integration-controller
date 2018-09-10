@@ -3,7 +3,7 @@ package integration
 import "github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 
 type FuseService interface {
-	AddAMQPConnection(user, pass, messageHost string) error
+	AddAMQPConnection(name, user, pass, messageHost, namespace string) (string, error)
 }
 
 type EnMasseService interface {
