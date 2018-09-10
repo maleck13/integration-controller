@@ -24,15 +24,28 @@ type Integration struct {
 	Status            IntegrationStatus `json:"status,omitempty"`
 }
 
+func NewIntegration() *Integration{
+	return &Integration{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Integration",
+			APIVersion: GroupName + "/" + Version,
+		},
+	}
+}
 type IntegrationSpec struct {
 	Service         string `json:"service"`
 	IntegrationType string `json:"integrationType"`
 	Enabled         bool   `json:"enabled"`
-	// Fill me
+	IntegrationSpecMetaData `json:"metaData"`
 }
 type IntegrationStatus struct {
 	// Fill me
 	Phase Phase `json:"phase"`
+}
+
+type IntegrationSpecMetaData struct {
+	MessagingHost string `json:"messagingHost"`
+    Realm  string `json:"realm"`
 }
 
 type Phase string
