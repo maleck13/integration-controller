@@ -84,7 +84,7 @@ func main() {
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 
 	sdk.Watch("v1", "ConfigMap", namespace, resync, sdk.WithLabelSelector("type=address-space"))
-	sdk.Watch(resource, kind, namespace, resync)
+	sdk.Watch(resource, kind, "", resync)
 	//sdk.Watch(v1.SchemeGroupVersion.String(), v1.AddressKind, namespace, resync)
 	sdk.Handle(mainHandler)
 	sdk.Run(context.TODO())
