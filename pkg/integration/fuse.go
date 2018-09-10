@@ -77,7 +77,7 @@ func (f *Fuse) addAMQPIntegration(ctx context.Context, integration *v1alpha1.Int
 	if err != nil && !errors2.IsAlreadyExistsErr(err) {
 		return nil, errors.Wrap(err, "integration failed. Could not generate new user in enmasse keycloak")
 	}
-	if _, err := f.fuseService.AddAMQPConnection(integration.Name, u.UserName, u.Password, msgHost, integration.Namespace); err != nil && !errors3.IsAlreadyExists(err) {
+	if _, err := f.fuseService.AddAMQPConnection(integration.Name, u.UserName, u.Password, integration.Spec.MessagingHost, integration.Namespace); err != nil && !errors3.IsAlreadyExists(err) {
 		return nil, errors.Wrap(err, "failed to create amqp connection in fuse")
 	}
 	ic.Status.Phase = v1alpha1.PhaseComplete
