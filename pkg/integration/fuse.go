@@ -33,7 +33,6 @@ func (f *Fuse) Integrate(ctx context.Context, integration *v1alpha1.Integration)
 		if err != nil {
 			return errors.Wrap(err, "failed to add amqp integration")
 		}
-		logrus.Debug(update)
 		logrus.Debug("updating integration")
 		return sdk.Update(update)
 	}
@@ -59,7 +58,7 @@ func (f *Fuse) DisIntegrate(ctx context.Context, integration *v1alpha1.Integrati
 func (f *Fuse) removeAMQPIntegration(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
 	// remove user
 	// remove connection
-	// remove finalizer
+	// if deleted remove finalizer
 	ic := integration.DeepCopy()
 
 	return ic, nil
@@ -81,5 +80,6 @@ func (f *Fuse) addAMQPIntegration(ctx context.Context, integration *v1alpha1.Int
 		return nil, errors.Wrap(err, "failed to create amqp connection in fuse")
 	}
 	ic.Status.Phase = v1alpha1.PhaseComplete
+	ic.Labels["integration"] = "enabled"
 	return ic, nil
 }

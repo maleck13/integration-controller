@@ -4,7 +4,7 @@ metadata:
   name: integration-controller
 rules:
 - apiGroups:
-  - integration.integreatly.org
+  - integreatly.org
   resources:
   - "*"
   verbs:
@@ -34,6 +34,7 @@ rules:
   - syndesis.io
   resources:
   - connections
+  - syndesises
   verbs:
   - "*"
 

@@ -50,7 +50,7 @@ func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 	switch integration.Spec.Service {
 	case "fuse":
-		if event.Deleted {
+		if integration.Spec.Enabled == false || event.Deleted {
 			return h.fuse.DisIntegrate(ctx, integration)
 		}
 		return h.fuse.Integrate(ctx, integration)

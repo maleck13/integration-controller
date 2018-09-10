@@ -4,18 +4,22 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"runtime"
+	"strings"
 	"time"
+
+	"github.com/integr8ly/integration-controller/pkg/openshift"
 
 	"github.com/integr8ly/integration-controller/pkg/fuse"
 
 	"github.com/integr8ly/integration-controller/pkg/enmasse"
 
-	"github.com/integr8ly/integration-controller/pkg/integration"
-	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
-
 	"github.com/integr8ly/integration-controller/pkg/dispatch"
+	"github.com/integr8ly/integration-controller/pkg/integration"
+	_ "github.com/integr8ly/integration-controller/pkg/openshift"
 	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -81,10 +85,18 @@ func main() {
 	mainHandler := dispatch.NewHandler(k8Client)
 	mainHandler.(*dispatch.Handler).AddHandler(integrationReconciler)
 	mainHandler.(*dispatch.Handler).AddHandler(&enmasse.Reconciler{})
+	mainHandler.(*dispatch.Handler).AddHandler(openshift.NewRouteReconciler())
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
-
+	//watch user namespaces for routes
+	userNamespaces := os.Getenv("USER_NAMESPACES")
+	if userNamespaces != "" {
+		ns := strings.Split(userNamespaces, ",")
+		for _, uNS := range ns {
+			sdk.Watch("route.openshift.io/v1", "Route", strings.TrimSpace(uNS), resync)
+		}
+	}
 	sdk.Watch("v1", "ConfigMap", namespace, resync, sdk.WithLabelSelector("type=address-space"))
-	sdk.Watch(resource, kind, "", resync)
+	sdk.Watch(resource, kind, namespace, resync)
 	//sdk.Watch(v1.SchemeGroupVersion.String(), v1.AddressKind, namespace, resync)
 	sdk.Handle(mainHandler)
 	sdk.Run(context.TODO())

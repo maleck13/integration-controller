@@ -32,15 +32,6 @@ func (r *Reconciler) GVK() schema.GroupVersionKind {
 
 }
 
-func syndesisExists(namespace string) (bool, error) {
-	syndesisList := syndesis.NewSyndesisList()
-	if err := sdk.List(namespace, syndesisList); err != nil {
-		return false, errors.New("Failed to list syndesis custom resources")
-	}
-
-	return len(syndesisList.Items) > 0, nil
-}
-
 func unMarshalAddressSpace(cfgm *v12.ConfigMap) (*v1.AddressSpace, error) {
 	addressSpaceData := cfgm.Data["config.json"]
 
@@ -49,13 +40,14 @@ func unMarshalAddressSpace(cfgm *v12.ConfigMap) (*v1.AddressSpace, error) {
 	return &addressSpace, err
 }
 
-func createIntegrationResource(as *v1.AddressSpace, namespace string) *integration.Integration {
+func createIntegrationResource(as *v1.AddressSpace, fuse *syndesis.Syndesis, namespace string) *integration.Integration {
 	ingrtn := integration.NewIntegration()
 	for _, endPointStatus := range as.Status.EndPointStatuses {
 		if endPointStatus.Name == "messaging" {
 			ingrtn := integration.NewIntegration()
-			ingrtn.ObjectMeta.Name = as.Name
+			ingrtn.ObjectMeta.Name = as.Name + "-messaging-" + fuse.Name + "-fuse"
 			ingrtn.ObjectMeta.Namespace = namespace
+			ingrtn.Labels = map[string]string{"integration": "disabled"}
 			ingrtn.Spec.MessagingHost = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", endPointStatus.Port)
 			ingrtn.Spec.Realm = as.Annotations["enmasse.io/realm-name"]
 			ingrtn.Spec.IntegrationType = integrationType
@@ -76,38 +68,40 @@ func createIntegrationResource(as *v1.AddressSpace, namespace string) *integrati
 }
 
 func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
+	configMap, ok := event.Object.(*v12.ConfigMap)
+	//logrus.Info("handling address space config map ", configMap.Name, event)
+	if !ok {
+		return errors.New("expected a config map object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
+	}
 	logrus.Info("handling object ", event.Object.GetObjectKind().GroupVersionKind().String())
 
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		logrus.Fatalf("Failed to get watch namespace: %v", err)
 	}
-	hasSyndesis, err := syndesisExists(namespace)
-	if err != nil {
-		return err
-	}
-	if hasSyndesis == false {
-		return nil
-	}
-
-	configMap, ok := event.Object.(*v12.ConfigMap)
-	//logrus.Info("handling address space config map ", configMap.Name, event)
-	if !ok {
-		return errors.New("expected a config map object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
-	}
 
 	addressSpace, err := unMarshalAddressSpace(configMap)
 	if err != nil {
 		logrus.Fatalf("Failed to unmarshall addressspace data: %v", err)
+		return err
 	}
-
-	ingrtn := createIntegrationResource(addressSpace, namespace)
-	if event.Deleted == true {
-		return sdk.Delete(ingrtn)
-	} else {
+	syndesisList := syndesis.NewSyndesisList()
+	if err := sdk.List(namespace, syndesisList); err != nil {
+		return errors.Wrap(err, "Failed to list syndesis custom resources")
+	}
+	if len(syndesisList.Items) == 0 {
+		logrus.Info("no fuse discovered. Doing nothing")
+		return nil
+	}
+	for _, f := range syndesisList.Items {
+		ingrtn := createIntegrationResource(addressSpace, &f, namespace)
 		if err := sdk.Create(ingrtn); err != nil && !errors2.IsAlreadyExists(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+type Fuse interface {
+	ListFuses()
 }
