@@ -28,3 +28,5 @@ spec:
                   fieldPath: metadata.namespace
             - name: OPERATOR_NAME
               value: "integration-controller"
+            - name: INTEGRATION_AUTO_ENABLE
+              value: "true"

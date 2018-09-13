@@ -52,6 +52,7 @@ type IntegrationSpecMetaData struct {
 type Phase string
 
 type User struct {
+	ID       string `json:"id"`
 	UserName string
 	Password string
 }

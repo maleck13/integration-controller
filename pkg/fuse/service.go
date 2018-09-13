@@ -1,6 +1,8 @@
 package fuse
 
 import (
+	"fmt"
+
 	"github.com/integr8ly/integration-controller/pkg/apis/syndesis/v1alpha1"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
@@ -15,11 +17,13 @@ func NewService() *Service {
 }
 
 func (s *Service) AddAMQPConnection(name, user, pass, messageHost, namespace string) (string, error) {
+	//amqp://messaging.enmasse-eval.svc:5672?amqp.saslMechanisms=PLAIN
+	msgHost := fmt.Sprintf("amqp://%s?amqp.saslMechanisms=PLAIN", messageHost)
 	connection := v1alpha1.Connection{
 		Spec: v1alpha1.ConnectionSpec{
 			Password: pass,
 			Username: user,
-			URL:      messageHost,
+			URL:      msgHost,
 		},
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "fuse-amqp-" + name,

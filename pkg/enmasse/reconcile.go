@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 
@@ -19,6 +20,15 @@ import (
 )
 
 type Reconciler struct {
+	autoEnable bool
+}
+
+func NewReconciler() *Reconciler {
+	r := &Reconciler{}
+	if os.Getenv("INTEGRATION_AUTO_ENABLE") == "true" {
+		r.autoEnable = true
+	}
+	return r
 }
 
 var integrationType = "amqp"
@@ -40,7 +50,8 @@ func unMarshalAddressSpace(cfgm *v12.ConfigMap) (*v1.AddressSpace, error) {
 	return &addressSpace, err
 }
 
-func createIntegrationResource(as *v1.AddressSpace, fuse *syndesis.Syndesis, namespace string) *integration.Integration {
+func createIntegrationResource(as *v1.AddressSpace, fuse *syndesis.Syndesis, namespace string, enabled bool) *integration.Integration {
+	logrus.Info("auto enabled ", enabled)
 	ingrtn := integration.NewIntegration()
 	for _, endPointStatus := range as.Status.EndPointStatuses {
 		if endPointStatus.Name == "messaging" {
@@ -52,7 +63,7 @@ func createIntegrationResource(as *v1.AddressSpace, fuse *syndesis.Syndesis, nam
 			ingrtn.Spec.Realm = as.Annotations["enmasse.io/realm-name"]
 			ingrtn.Spec.IntegrationType = integrationType
 			ingrtn.Spec.Service = "fuse"
-			ingrtn.Spec.Enabled = false
+			ingrtn.Spec.Enabled = enabled
 
 			for _, servicePort := range endPointStatus.ServicePorts {
 				if servicePort.Name == integrationType {
@@ -94,9 +105,11 @@ func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 		return nil
 	}
 	for _, f := range syndesisList.Items {
-		ingrtn := createIntegrationResource(addressSpace, &f, namespace)
-		if err := sdk.Create(ingrtn); err != nil && !errors2.IsAlreadyExists(err) {
-			return err
+		if f.Status.Phase == syndesis.SyndesisPhaseInstalled {
+			ingrtn := createIntegrationResource(addressSpace, &f, namespace, r.autoEnable)
+			if err := sdk.Create(ingrtn); err != nil && !errors2.IsAlreadyExists(err) {
+				return err
+			}
 		}
 	}
 	return nil

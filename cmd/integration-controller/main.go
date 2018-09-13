@@ -42,6 +42,7 @@ func init() {
 	flagset := flag.CommandLine
 	flagset.IntVar(&resyncPeriod, "resync", 10, "change the resync period")
 	flagset.StringVar(&logLevel, "log-level", logrus.Level.String(logrus.InfoLevel), "Log level to use. Possible values: panic, fatal, error, warn, info, debug")
+
 }
 
 func main() {
@@ -84,7 +85,7 @@ func main() {
 	integrationReconciler := integration.NewReconciler(fuseIntegrationReconciler)
 	mainHandler := dispatch.NewHandler(k8Client)
 	mainHandler.(*dispatch.Handler).AddHandler(integrationReconciler)
-	mainHandler.(*dispatch.Handler).AddHandler(&enmasse.Reconciler{})
+	mainHandler.(*dispatch.Handler).AddHandler(enmasse.NewReconciler())
 	mainHandler.(*dispatch.Handler).AddHandler(openshift.NewRouteReconciler())
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 	//watch user namespaces for routes
@@ -97,7 +98,6 @@ func main() {
 	}
 	sdk.Watch("v1", "ConfigMap", namespace, resync, sdk.WithLabelSelector("type=address-space"))
 	sdk.Watch(resource, kind, namespace, resync)
-	//sdk.Watch(v1.SchemeGroupVersion.String(), v1.AddressKind, namespace, resync)
 	sdk.Handle(mainHandler)
 	sdk.Run(context.TODO())
 }

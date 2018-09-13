@@ -2,6 +2,7 @@ package openshift
 
 import (
 	"context"
+	"os"
 
 	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 
@@ -16,10 +17,15 @@ import (
 )
 
 type RouteReconciler struct {
+	autoEnable bool
 }
 
 func NewRouteReconciler() *RouteReconciler {
-	return &RouteReconciler{}
+	r := &RouteReconciler{}
+	if os.Getenv("INTEGRATION_AUTO_ENABLE") == "true" {
+		r.autoEnable = true
+	}
+	return r
 }
 
 func (h *RouteReconciler) GVK() schema.GroupVersionKind {
@@ -41,7 +47,8 @@ func (h *RouteReconciler) Handle(ctx context.Context, event sdk.Event) error {
 	if route.Spec.TLS != nil {
 		integreation.Spec.IntegrationType = "https"
 	}
+	integreation.Spec.Enabled = h.autoEnable
 	integreation.Spec.Service = "fuse"
-	// create integration
-	return nil
+	return sdk.Create(integreation)
+
 }
