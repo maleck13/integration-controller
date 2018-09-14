@@ -30,23 +30,29 @@ func NewIntegration() *Integration {
 			Kind:       "Integration",
 			APIVersion: GroupName + "/" + Version,
 		},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{},
+		},
 	}
 }
 
 type IntegrationSpec struct {
-	Service                 string `json:"service"`
-	IntegrationType         string `json:"integrationType"`
-	Enabled                 bool   `json:"enabled"`
-	IntegrationSpecMetaData `json:"metaData"`
+	Service         string `json:"service"`
+	IntegrationType string `json:"integrationType"`
+	Enabled         bool   `json:"enabled"`
 }
 type IntegrationStatus struct {
 	// Fill me
-	Phase Phase `json:"phase"`
+	Phase               Phase `json:"phase"`
+	LastCheck           int64
+	IntegrationMetaData `json:"metaData"`
 }
 
-type IntegrationSpecMetaData struct {
-	MessagingHost string `json:"messagingHost"`
-	Realm         string `json:"realm"`
+type IntegrationMetaData struct {
+	MessagingHost string            `json:"messagingHost"`
+	Realm         string            `json:"realm"`
+	Secrets       []string          `json:"secrets"`
+	Route         map[string]string `json:"route"`
 }
 
 type Phase string

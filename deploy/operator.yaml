@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: integration-controller
-          image: quay.io/integreatly/integration-controller:0.0.4
+          image: quay.io/integreatly/integration-controller:0.0.7
           ports:
           - containerPort: 60000
             name: metrics
@@ -28,5 +28,3 @@ spec:
                   fieldPath: metadata.namespace
             - name: OPERATOR_NAME
               value: "integration-controller"
-            - name: INTEGRATION_AUTO_ENABLE
-              value: "true"

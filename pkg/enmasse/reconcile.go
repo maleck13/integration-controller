@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 
@@ -59,15 +60,15 @@ func createIntegrationResource(as *v1.AddressSpace, fuse *syndesis.Syndesis, nam
 			ingrtn.ObjectMeta.Name = as.Name + "-messaging-" + fuse.Name + "-fuse"
 			ingrtn.ObjectMeta.Namespace = namespace
 			ingrtn.Labels = map[string]string{"integration": "disabled"}
-			ingrtn.Spec.MessagingHost = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", endPointStatus.Port)
-			ingrtn.Spec.Realm = as.Annotations["enmasse.io/realm-name"]
+			ingrtn.Status.IntegrationMetaData.MessagingHost = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", endPointStatus.Port)
+			ingrtn.Status.IntegrationMetaData.Realm = as.Annotations["enmasse.io/realm-name"]
 			ingrtn.Spec.IntegrationType = integrationType
 			ingrtn.Spec.Service = "fuse"
 			ingrtn.Spec.Enabled = enabled
 
 			for _, servicePort := range endPointStatus.ServicePorts {
 				if servicePort.Name == integrationType {
-					ingrtn.Spec.MessagingHost = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", servicePort.Port)
+					ingrtn.Status.IntegrationMetaData.MessagingHost = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", servicePort.Port)
 				}
 
 			}
@@ -104,8 +105,10 @@ func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 		logrus.Info("no fuse discovered. Doing nothing")
 		return nil
 	}
+	addressCreator := addressSpace.Annotations["enmasse.io/created-by"]
 	for _, f := range syndesisList.Items {
-		if f.Status.Phase == syndesis.SyndesisPhaseInstalled {
+		fuseCreator := f.Annotations["syndesis.io/created-by"]
+		if f.Status.Phase == syndesis.SyndesisPhaseInstalled && (strings.TrimSpace(fuseCreator) == strings.TrimSpace(addressCreator)) {
 			ingrtn := createIntegrationResource(addressSpace, &f, namespace, r.autoEnable)
 			if err := sdk.Create(ingrtn); err != nil && !errors2.IsAlreadyExists(err) {
 				return err

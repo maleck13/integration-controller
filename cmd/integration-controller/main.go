@@ -89,10 +89,11 @@ func main() {
 	mainHandler.(*dispatch.Handler).AddHandler(openshift.NewRouteReconciler())
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 	//watch user namespaces for routes
-	userNamespaces := os.Getenv("USER_NAMESPACES")
+	userNamespaces := os.Getenv("WATCH_USER_NAMESPACES")
 	if userNamespaces != "" {
 		ns := strings.Split(userNamespaces, ",")
 		for _, uNS := range ns {
+			logrus.Info("watching user namespace ", uNS)
 			sdk.Watch("route.openshift.io/v1", "Route", strings.TrimSpace(uNS), resync)
 		}
 	}

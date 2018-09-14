@@ -21,9 +21,10 @@ type Connection struct {
 }
 
 type ConnectionSpec struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	URL      string `json:"url,omitempty"`
+	Username       string `json:"username,omitempty"`
+	Password       string `json:"password,omitempty"`
+	URL            string `json:"url,omitempty"`
+	ConnectionType string `json:"connectionType,omitempty"`
 }
 
 type ConnectionStatus struct {

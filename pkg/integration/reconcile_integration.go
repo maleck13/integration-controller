@@ -32,7 +32,7 @@ func (h *Reconciler) GVK() schema.GroupVersionKind {
 func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 
 	integration, ok := event.Object.(*v1alpha1.Integration)
-	logrus.Info("handling integration ", integration.Name, integration.Spec, event)
+	logrus.Info("handling integration ", integration.Name, integration.Status.Route, event)
 	if !ok {
 		return errors.New("expected a integration object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
 	}
@@ -68,6 +68,7 @@ func (h *Reconciler) Accept(ctx context.Context, integration *v1alpha1.Integrati
 	if err := v1alpha1.AddFinalizer(integration, v1alpha1.Finalizer); err != nil {
 		return nil, errors.Wrap(err, "failed to accept integration could not add finalizer")
 	}
+	ic.Status.IntegrationMetaData.Secrets = []string{}
 	ic.Status.Phase = v1alpha1.PhaseAccepted
 	return ic, nil
 }

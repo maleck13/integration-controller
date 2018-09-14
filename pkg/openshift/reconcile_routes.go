@@ -2,7 +2,10 @@ package openshift
 
 import (
 	"context"
+	"fmt"
 	"os"
+
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 
@@ -18,13 +21,16 @@ import (
 
 type RouteReconciler struct {
 	autoEnable bool
+	watchNS    string
 }
 
 func NewRouteReconciler() *RouteReconciler {
 	r := &RouteReconciler{}
+	// TODO move up to main
 	if os.Getenv("INTEGRATION_AUTO_ENABLE") == "true" {
 		r.autoEnable = true
 	}
+	r.watchNS = os.Getenv("WATCH_NAMESPACE")
 	return r
 }
 
@@ -44,11 +50,19 @@ func (h *RouteReconciler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 	integreation := v1alpha1.NewIntegration()
 	integreation.Spec.IntegrationType = "http"
+	integreation.Namespace = h.watchNS
+	integreation.Name = route.Name + "-fuse"
 	if route.Spec.TLS != nil {
 		integreation.Spec.IntegrationType = "https"
 	}
 	integreation.Spec.Enabled = h.autoEnable
 	integreation.Spec.Service = "fuse"
-	return sdk.Create(integreation)
-
+	if integreation.Status.IntegrationMetaData.Route == nil {
+		integreation.Status.IntegrationMetaData.Route = map[string]string{}
+	}
+	integreation.Status.IntegrationMetaData.Route[route.Name] = fmt.Sprintf("%s://%s", integreation.Spec.IntegrationType, route.Spec.Host)
+	if err := sdk.Create(integreation); err != nil && !errors2.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }

@@ -4,6 +4,8 @@ import "github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha
 
 type FuseService interface {
 	AddAMQPConnection(name, user, pass, messageHost, namespace string) (string, error)
+	DoesConnectionExist(onnType, name, ns string) (bool, error)
+	AddRouteConnection(name, route, routeProtocol, namespace string) error
 }
 
 type EnMasseService interface {
