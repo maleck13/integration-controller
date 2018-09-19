@@ -35,7 +35,7 @@ build-image:
 
 .PHONY: run
 run:
-	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=5 --log-level=debug"
+	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=10 --log-level=debug"
 
 .PHONY: generate
 generate:

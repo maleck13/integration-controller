@@ -2,7 +2,11 @@ package enmasse
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+
+	errors2 "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/integr8ly/integration-controller/pkg/apis/enmasse/v1"
 	integration "github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 	syndesis "github.com/integr8ly/integration-controller/pkg/apis/syndesis/v1alpha1"
@@ -12,7 +16,6 @@ import (
 	"github.com/sirupsen/logrus"
 	v12 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"encoding/json"
 )
 
 type Reconciler struct {
@@ -88,13 +91,13 @@ func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 
 	configMap, ok := event.Object.(*v12.ConfigMap)
-	logrus.Info("handling address space config map ", configMap.Name, event)
+	//logrus.Info("handling address space config map ", configMap.Name, event)
 	if !ok {
 		return errors.New("expected a config map object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
 	}
 
 	addressSpace, err := unMarshalAddressSpace(configMap)
-	if err !=  nil {
+	if err != nil {
 		logrus.Fatalf("Failed to unmarshall addressspace data: %v", err)
 	}
 
@@ -102,6 +105,9 @@ func (r *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 	if event.Deleted == true {
 		return sdk.Delete(ingrtn)
 	} else {
-		return sdk.Create(ingrtn)
+		if err := sdk.Create(ingrtn); err != nil && !errors2.IsAlreadyExists(err) {
+			return err
+		}
 	}
+	return nil
 }
