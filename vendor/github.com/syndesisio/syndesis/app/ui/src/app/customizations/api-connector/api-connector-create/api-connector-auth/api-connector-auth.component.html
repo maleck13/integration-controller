@@ -1,0 +1,59 @@
+<div class="card-pf-heading">
+  <h2 class="card-pf-title">
+    Specify Security
+  </h2>
+</div>
+<div class="card-pf-body">
+  <p>
+    <strong>Authentication Type</strong>
+  </p>
+  <form [formGroup]="authSetupForm" #form="ngForm" (ngSubmit)="onSubmit(form)" class="form-horizontal" novalidate>
+    <fieldset class="container-fluid">
+      <div class="row">
+        <div *ngFor="let authType of customConnectorRequest.properties.authenticationType.enum" class="col-xs-12">
+          <div class="form-group">
+            <div class="col-xs-12">
+              <div class="radio">
+                <label>
+                  <input type="radio"
+                    name="authenticationType"
+                    formControlName="authenticationType"
+                    [value]="authType.value"
+                    #authenticationType> {{ authType.label }}
+                </label>
+              </div>
+            </div>
+          </div>
+          <ng-container *ngIf="authType.value == 'oauth2'">
+            <div *ngIf="authenticationType.checked">
+              <div class="form-group">
+                <label class="col-sm-3 control-label" for="authorizationEndpoint">Authorization URL</label>
+                <div class="col-sm-9">
+                  <input class="form-control"
+                    [class.syn-submitted]="form.submitted"
+                    type="text"
+                    formControlName="authorizationEndpoint">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="col-sm-3 control-label" for="tokenEndpoint">Access Token URL</label>
+                <div class="col-sm-9">
+                  <input class="form-control"
+                    [class.syn-submitted]="form.submitted"
+                    type="text"
+                    formControlName="tokenEndpoint">
+                </div>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <syndesis-button type="submit" [disabled]="authSetupForm.invalid">
+        Next
+      </syndesis-button>
+    </fieldset>
+  </form>
+</div>
