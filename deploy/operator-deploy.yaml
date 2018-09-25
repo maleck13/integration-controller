@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: integration-controller
+  template:
+    metadata:
+      labels:
+        name: integration-controller
+    spec:
+      serviceAccountName: integration-controller
+      containers:
+      - name: integration-controller
+        image: quay.io/integreatly/integration-controller:dev
+        ports:
+        - containerPort: 60000
+          name: metrics
+        command:
+        - integration-controller
+        - --allow-insecure=true
+        imagePullPolicy: Always
+        env:
+        - name: WATCH_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OPERATOR_NAME
+          value: "integration-controller"

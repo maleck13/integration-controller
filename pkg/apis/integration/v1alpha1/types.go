@@ -34,19 +34,15 @@ func NewIntegration() *Integration {
 }
 
 type IntegrationSpec struct {
-	Service                 string `json:"service"`
-	IntegrationType         string `json:"integrationType"`
-	Enabled                 bool   `json:"enabled"`
-	IntegrationSpecMetaData `json:"metaData"`
+	ServiceProvider string `json:"serviceProvider"`
+	IntegrationType string `json:"integrationType"`
+	Client          string `json:"client"`
+	Enabled         bool   `json:"enabled"`
 }
 type IntegrationStatus struct {
-	// Fill me
-	Phase Phase `json:"phase"`
-}
-
-type IntegrationSpecMetaData struct {
-	MessagingHost string `json:"messagingHost"`
-	Realm         string `json:"realm"`
+	Phase               Phase             `json:"phase"`
+	IntegrationMetaData map[string]string `json:"metaData"`
+	StatusMessage       string            `json:"statusMessage"`
 }
 
 type Phase string
@@ -54,6 +50,7 @@ type Phase string
 type User struct {
 	UserName string
 	Password string
+	ID       string
 }
 
 const (
@@ -98,3 +95,7 @@ func RemoveFinalizer(obj runtime.Object, value string) ([]string, error) {
 	accessor.SetFinalizers(newFinalizers)
 	return newFinalizers, nil
 }
+
+const (
+	FuseIntegrationTarget string = "fuse"
+)

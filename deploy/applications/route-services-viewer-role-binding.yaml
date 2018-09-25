@@ -1,0 +1,12 @@
+apiVersion: authorization.openshift.io/v1
+kind: RoleBinding
+metadata:
+  generateName: integration-controller-route-viewer
+roleRef:
+  name: route-service-viewer
+subjects:
+- kind: ServiceAccount
+  name: integration-controller
+  namespace: FUSE_NAMESPACE #replace with your fuse namespace
+userNames:
+- system:serviceaccount:FUSE_NAMESPACE:integration-controller #will need to be templated

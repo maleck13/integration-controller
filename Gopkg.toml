@@ -34,5 +34,4 @@ required = [
 
 [[constraint]]
   name = "github.com/operator-framework/operator-sdk"
-  # The version rule is used for a specific release and the master branch for in between releases
   version = "=v0.0.6"

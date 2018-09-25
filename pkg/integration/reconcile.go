@@ -14,11 +14,11 @@ import (
 )
 
 type Reconciler struct {
-	fuse *Fuse
+	integrationReg IntegratorRegistery
 }
 
-func NewReconciler(fuse *Fuse) *Reconciler {
-	return &Reconciler{fuse: fuse}
+func NewReconciler(integrationReg IntegratorRegistery) *Reconciler {
+	return &Reconciler{integrationReg: integrationReg}
 }
 
 func (h *Reconciler) GVK() schema.GroupVersionKind {
@@ -32,12 +32,16 @@ func (h *Reconciler) GVK() schema.GroupVersionKind {
 func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 
 	integration, ok := event.Object.(*v1alpha1.Integration)
-	logrus.Info("handling integration ", integration.Name, integration.Spec, event)
 	if !ok {
 		return errors.New("expected a integration object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
 	}
+	logrus.Info("handling integration ", integration.Name, integration.Spec)
+	integrator := h.integrationReg.IntegratorFor(integration)
+	if integrator == nil {
+		return errors.New("no integrators registered for " + integration.Spec.ServiceProvider)
+	}
 	if integration.Status.Phase == v1alpha1.PhaseNone {
-		ic, err := h.Accept(ctx, integration)
+		ic, err := h.Accept(ctx, integration, integrator.Validate)
 		if err != nil && controllerErr.IsNotEnabledErr(err) {
 			logrus.Debug("integration is not enabled ", integration.Name, " doing nothing")
 			return nil
@@ -48,22 +52,41 @@ func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 
 		return sdk.Update(ic)
 	}
-	switch integration.Spec.Service {
-	case "fuse":
-		if event.Deleted {
-			return h.fuse.DisIntegrate(ctx, integration)
+	if event.Deleted || (integration.Status.Phase == v1alpha1.PhaseComplete && integration.Spec.Enabled == false) {
+		itg, err := integrator.DisIntegrate(ctx, integration)
+		if err != nil {
+			return err
 		}
-		return h.fuse.Integrate(ctx, integration)
-	default:
-		return errors.New("unknown integration type " + integration.Spec.Service)
+		if _, err := v1alpha1.RemoveFinalizer(itg, v1alpha1.Finalizer); err != nil {
+			return err
+		}
+		if itg != nil {
+			return sdk.Update(itg)
+		}
 	}
+	itg, err := integrator.Integrate(ctx, integration)
+	if err != nil {
+		return err
+	}
+	if itg != nil {
+		return sdk.Update(itg)
+	}
+
 	return nil
 }
 
-func (h *Reconciler) Accept(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
+type validator func(integration *v1alpha1.Integration) error
+
+func (h *Reconciler) Accept(ctx context.Context, integration *v1alpha1.Integration, validate validator) (*v1alpha1.Integration, error) {
 	ic := integration.DeepCopy()
 	if !ic.Spec.Enabled {
 		return nil, &controllerErr.NotEnabledErr{}
+	}
+	if err := validate(ic); err != nil {
+		// not going to error here but instead allow the user to see the issue on the resource and keep trying to reconcile
+		ic.Status.StatusMessage = err.Error()
+		logrus.Error("integration failed validation ", err)
+		return ic, nil
 	}
 	if err := v1alpha1.AddFinalizer(integration, v1alpha1.Finalizer); err != nil {
 		return nil, errors.Wrap(err, "failed to accept integration could not add finalizer")
