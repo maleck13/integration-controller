@@ -289,6 +289,12 @@
   version = "v1.0.2"
 
 [[projects]]
+  name = "github.com/syndesisio/syndesis"
+  packages = ["install/operator/pkg/apis/syndesis/v1alpha1"]
+  revision = "f6d111a5212fea5912d4dfd4b0144c655e18bf84"
+  version = "1.5.3"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
@@ -548,6 +554,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c199442558a6196cd34a2c0c23e14316547203f03f46799753299ef3b135f67b"
+  inputs-digest = "5c6fa877688453a5f8d079b740c588f41dcd22bc45faaecdcae6ae8af26e1a30"
   solver-name = "gps-cdcl"
   solver-version = 1

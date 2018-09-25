@@ -1,6 +1,10 @@
 # Integration Controller
 
-Knows how to enable various integration via custom resources
+Knows how to enable various integrations between certain sets of products.
+
+Things it can currently integrate
+
+- EnMasse address-spaces to fuse online as connections
 
 # Status
 POC

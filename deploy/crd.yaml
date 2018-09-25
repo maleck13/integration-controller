@@ -16,9 +16,11 @@ spec:
       properties:
         spec:
           properties:
-            service:
+            serviceProvider:
               type: string
-            integration:
+            integrationType:
+              type: string
+            client:
               type: string
             enabled:
               type: boolean

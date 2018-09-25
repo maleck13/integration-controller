@@ -2,14 +2,13 @@ package enmasse
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/pborman/uuid"
 
@@ -29,37 +28,78 @@ const (
 
 type Service struct {
 	k8sclient   kubernetes.Interface
-	routeClient routev1.RouteInterface
-	ns          string
+	routeClient routev1.RoutesGetter
+	enmasseNS   string
+	httpClient  *http.Client
 }
 
-func NewService(k8sclient kubernetes.Interface, routeClient routev1.RouteInterface, targetNS string) *Service {
-	return &Service{k8sclient: k8sclient, routeClient: routeClient, ns: targetNS}
+func NewService(k8sclient kubernetes.Interface, routeClient routev1.RoutesGetter, httpClient *http.Client, targetNS string) *Service {
+	return &Service{k8sclient: k8sclient, routeClient: routeClient, enmasseNS: targetNS, httpClient: httpClient}
+}
+
+func (s *Service) DeleteUser(userName, realm string) error {
+	route, err := s.routeClient.Routes(s.enmasseNS).Get("keycloak", metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrap(err, "failed to list routes for enmasse")
+	}
+	logrus.Info("found route for keycloak ", route.Name)
+	// find secret for keycloak
+	cred, err := s.k8sclient.CoreV1().Secrets(s.enmasseNS).Get("keycloak-credentials", metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrap(err, "failed to get keycloak credentials for enmasse")
+	}
+	pass := string(cred.Data["admin.password"])
+	user := string(cred.Data["admin.username"])
+	host := "https://" + route.Spec.Host
+	authToken, err := s.keycloakLogin("https://"+route.Spec.Host, string(user), string(pass))
+	if err != nil {
+		return errors.Wrap(err, "failed to login to enmasse keycloak")
+	}
+	id, err := s.getUserID(host, authToken, realm, userName)
+	if err != nil {
+		return err
+	}
+	u := fmt.Sprintf("%s/auth/admin/realms/%s/users/%s", host, realm, id)
+	req, err := http.NewRequest("DELETE", u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return errors.New("unexpected response code from keycloak " + resp.Status)
+	}
+	return nil
 }
 
 func (s *Service) CreateUser(userName, realm string) (*v1alpha1.User, error) {
 	// note in the next release of enmasse we will be able to replace this with a crd creation
-	route, err := s.routeClient.Get("keycloak", metav1.GetOptions{})
+	route, err := s.routeClient.Routes(s.enmasseNS).Get("keycloak", metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list routes for enmasse")
 	}
 	logrus.Info("found route for keycloak ", route.Name)
 	// find secret for keycloak
-	cred, err := s.k8sclient.CoreV1().Secrets(s.ns).Get("keycloak-credentials", metav1.GetOptions{})
+	cred, err := s.k8sclient.CoreV1().Secrets(s.enmasseNS).Get("keycloak-credentials", metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get keycloak credentials for enmasse")
 	}
 	pass := string(cred.Data["admin.password"])
 	user := string(cred.Data["admin.username"])
 	host := "https://" + route.Spec.Host
-	authToken, err := keycloakLogin("https://"+route.Spec.Host, string(user), string(pass))
+	authToken, err := s.keycloakLogin("https://"+route.Spec.Host, string(user), string(pass))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to login to enmasse keycloak")
 	}
 	userPass := uuid.New()
-	u, err := createUser(host, authToken, realm, userName, userPass)
+	u, err := s.createUser(host, authToken, realm, userName, userPass)
 	if err != nil && errors2.IsAlreadyExistsErr(err) {
-		logrus.Info("RETURNING USER")
+		logrus.Debug("enmasse keycloak user already exists")
 		return &v1alpha1.User{Password: pass, UserName: userName}, nil
 	}
 	if err != nil {
@@ -68,15 +108,7 @@ func (s *Service) CreateUser(userName, realm string) (*v1alpha1.User, error) {
 	return u, nil
 }
 
-func defaultRequester() *http.Client {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	c := &http.Client{Transport: transport, Timeout: time.Second * 10}
-	return c
-}
-
-func keycloakLogin(host, user, pass string) (string, error) {
+func (s *Service) keycloakLogin(host, user, pass string) (string, error) {
 	form := url.Values{}
 	form.Add("username", user)
 	form.Add("password", pass)
@@ -93,7 +125,7 @@ func keycloakLogin(host, user, pass string) (string, error) {
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	res, err := defaultRequester().Do(req)
+	res, err := s.httpClient.Do(req)
 	if err != nil {
 		logrus.Errorf("error on request %+v", err)
 		return "", errors.Wrap(err, "error performing token request")
@@ -123,7 +155,106 @@ func keycloakLogin(host, user, pass string) (string, error) {
 
 }
 
-func createUser(host, token, realm, userName, password string) (*v1alpha1.User, error) {
+func (s *Service) getGroups(host, token, realm string) ([]*group, error) {
+	//https://keycloak-test1.apps.sedroche.openshiftworkshop.com/admin/realms/test1-john-test1/groups
+	//https://keycloak-test1.apps.sedroche.openshiftworkshop.com/auth/admin/realms/test1-john-test1/groups?first=0&max=20
+	//  %s/admin/realms/%s/groups
+	u := fmt.Sprintf("%s/auth/admin/realms/%s/groups", host, realm)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("unexpected response code from listing groups " + res.Status)
+
+	}
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	var groups []*group
+	if err := json.Unmarshal(data, &groups); err != nil {
+		return nil, err
+	}
+	return groups, nil
+
+}
+
+func (s *Service) getUserID(host, token, realm, userName string) (string, error) {
+	//	"/auth/admin/realms/%s/users?first=0&max=1&search=%s"
+	u := fmt.Sprintf("%s/auth/admin/realms/%s/users?first=0&max=1&search=%s", host, realm, userName)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", errors.New("unexpected response code from listing groups " + res.Status)
+
+	}
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+	logrus.Info("user found ", string(data))
+	var users []*v1alpha1.User
+	if err := json.Unmarshal(data, &users); err != nil {
+		return "", err
+	}
+	if len(users) != 1 {
+		logrus.Info("found users with length", len(users))
+		return "", errors.New("failed to find user ")
+	}
+	return users[0].ID, nil
+}
+
+func (s *Service) addUserToGroups(host, token, realm, userID string, groups []string) error {
+	//
+	var errs string
+	wg := &sync.WaitGroup{}
+	for _, g := range groups {
+		wg.Add(1)
+		go func(group string) {
+			defer wg.Done()
+			req, err := http.NewRequest("PUT", fmt.Sprintf("%s/auth/admin/realms/%s/users/%s/groups/%s", host, realm, userID, group), nil)
+			if err != nil {
+				errs = errs + " " + err.Error()
+				return
+			}
+			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+			req.Header.Set("Content-Type", "application/json")
+			res, err := s.httpClient.Do(req)
+			if err != nil {
+				errs = errs + " " + err.Error()
+				return
+			}
+			defer res.Body.Close()
+			if res.StatusCode != http.StatusNoContent {
+				errs = errs + " unexpected response code adding group for user" + res.Status
+			}
+		}(g)
+	}
+	wg.Wait()
+	if errs != "" {
+		return errors.New(errs)
+	}
+	return nil
+}
+
+func (s *Service) createUser(host, token, realm, userName, password string) (*v1alpha1.User, error) {
 	//https://keycloak-john-integration.apps.sedroche.openshiftworkshop.com/auth/admin/realms/john-integration-messaging-service/users
 	//https://keycloak-john-integration.apps.sedroche.openshiftworkshop.com/auth/admin/realms/John-integration-messaging-service/users
 	u := "%s/auth/admin/realms/%s/users"
@@ -143,13 +274,8 @@ func createUser(host, token, realm, userName, password string) (*v1alpha1.User, 
 			"offline_access",
 			"uma_authorization",
 		},
-		Groups: []string{
-			"send_*",
-			"recv_*",
-			"monitor",
-			"manage",
-		},
 	}
+	// may need to list available groups and add them after the user is created
 	body, err := json.Marshal(user)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create request body for creating new enmasse user")
@@ -160,7 +286,7 @@ func createUser(host, token, realm, userName, password string) (*v1alpha1.User, 
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Content-Type", "application/json")
-	res, err := defaultRequester().Do(req)
+	res, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make request to create new enmasse user")
 	}
@@ -173,7 +299,25 @@ func createUser(host, token, realm, userName, password string) (*v1alpha1.User, 
 	if res.StatusCode != http.StatusCreated {
 		return nil, errors.New("failed to create user status code " + res.Status)
 	}
-	return &v1alpha1.User{UserName: userName, Password: password}, nil
+	groups, err := s.getGroups(host, token, realm)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get keycloak groups")
+	}
+
+	var requiredGroups []string
+	for _, g := range groups {
+		if g.Name == "send_*" || g.Name == "recv_*" || g.Name == "manage" || g.Name == "view_*" || g.Name == "browse_*" {
+			requiredGroups = append(requiredGroups, g.ID)
+		}
+	}
+	id, err := s.getUserID(host, token, realm, userName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get the userid after successful creation")
+	}
+	if err := s.addUserToGroups(host, token, realm, id, requiredGroups); err != nil {
+		return nil, errors.Wrap(err, "failed to add required groups to user")
+	}
+	return &v1alpha1.User{UserName: userName, Password: password, ID: id}, nil
 }
 
 type tokenResponse struct {
@@ -207,4 +351,9 @@ type credential struct {
 	Type      string `json:"type"`
 	Value     string `json:"value"`
 	Temporary bool   `json:"temporary"`
+}
+
+type group struct {
+	Name string `json:"name"`
+	ID   string `json:"id"`
 }

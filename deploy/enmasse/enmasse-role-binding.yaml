@@ -1,0 +1,13 @@
+apiVersion: authorization.openshift.io/v1
+kind: RoleBinding
+metadata:
+  generateName: integration-controller-enmasse-view-
+  namespace: enmasse
+roleRef:
+  name: configmap-viewer
+subjects:
+- kind: ServiceAccount
+  name: integration-controller
+  namespace: FUSE_NAMESPACE # needs to be set at deploy
+userNames:
+- system:serviceaccount:FUSE_NAMESPACE:integration-controller #needs to be set at deploy

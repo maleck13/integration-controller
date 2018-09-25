@@ -35,11 +35,13 @@ build-image:
 
 .PHONY: run
 run:
-	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=10 --log-level=debug"
+	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug"
 
 .PHONY: generate
 generate:
 	operator-sdk generate k8s
+	go get github.com/matryer/moq
+	@go generate ./...
 
 compile:
 	go build -o=${PROJECT} ./cmd/${PROJECT}
