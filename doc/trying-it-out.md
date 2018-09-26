@@ -41,6 +41,6 @@ Using an account with cluster admin perform the following steps to install the c
 - deploy the controller to the fuse namespace
 
     ```
-       oc create -f operator 
+       oc create -f operator-deploy.yaml
     
     ```    

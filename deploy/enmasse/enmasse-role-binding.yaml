@@ -4,7 +4,7 @@ metadata:
   generateName: integration-controller-enmasse-view-
   namespace: enmasse
 roleRef:
-  name: configmap-viewer
+  name: enmasse-integration-viewer
 subjects:
 - kind: ServiceAccount
   name: integration-controller
