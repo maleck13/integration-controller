@@ -6,6 +6,10 @@ Things it can currently integrate
 
 - EnMasse address-spaces to fuse online as connections
 
+# Design concept
+
+The idea behind the integration controller is to be a dumb pipe. IE when it sees a resource it knows about, it looks for consumers that can integrate with what that resource represents. The controller checks for the existence of a consumer and then creates an ```integration``` resource. **Ideally** once the integration resouce is enabled, the integration controller will then create a new custom resource and hand off the complexities of the api integration to another operator. However it is also valid for the integration controller to call the services API to set up the integration until it can be delegated to another operator. 
+
 # Status
 POC
 
