@@ -8,7 +8,13 @@ Things it can currently integrate
 
 # Design concept
 
-The idea behind the integration controller is to be a dumb pipe. IE when it sees a resource it knows about, it looks for consumers that can integrate with what that resource represents. The controller checks for the existence of a consumer and then creates an ```integration``` resource. **Ideally** once the integration resouce is enabled, the integration controller will then create a new custom resource and hand off the complexities of the api integration to another operator. However it is also valid for the integration controller to call the services API to set up the integration until it can be delegated to another operator. 
+The idea behind the integration controller is to be a dumb pipe. IE when it sees a resource it knows about, it looks for consumers that can integrate with what that resource represents. The controller checks for the existence of a consumer and then creates an ```integration``` resource. **Ideally** once the integration resouce is enabled, the integration controller will hand off to an ```integrator``` which may create a new custom resource and hand off the complexities of the api integration to another operator or call the services API directly to set up the integration (this is the case between enmasse and fuse for example). Once the right CRDs are put in place in the upstream dependencies it would then be delegated to another operator and the API specific code removed.
+
+Example of a consumer integrator implementation [fuse online](https://github.com/integr8ly/integration-controller/tree/master/pkg/fuse) in the code base.
+
+In this example there are alot of direct api calls. However the hope is to remove those and hand them off to each services operator
+
+
 
 # Status
 POC
