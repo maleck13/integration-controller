@@ -172,6 +172,15 @@
   revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/matryer/moq"
+  packages = [
+    ".",
+    "pkg/moq"
+  ]
+  revision = "fbe042a544282dc016351152e35e923886249253"
+
+[[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
   revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
@@ -348,6 +357,9 @@
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
+    "go/buildutil",
+    "go/internal/cgo",
+    "go/loader",
     "imports",
     "internal/fastwalk"
   ]
@@ -554,6 +566,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5c6fa877688453a5f8d079b740c588f41dcd22bc45faaecdcae6ae8af26e1a30"
+  inputs-digest = "c954c8c27ca9797c44f52b675ea55da402e4747a9bf2bace545776d172c57939"
   solver-name = "gps-cdcl"
   solver-version = 1

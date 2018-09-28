@@ -10,15 +10,6 @@ import (
 	integrationAPI "github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 )
 
-type FuseService interface {
-	AddAMQPConnection(name, user, pass, messageHost, namespace string) (string, error)
-}
-
-type EnMasseService interface {
-	CreateUser(userName, realm string) (*integrationAPI.User, error)
-	DeleteUser(userName, realm string) error
-}
-
 type IntegratorDisintegrator interface {
 	Integrate(context.Context, *integrationAPI.Integration) (*integrationAPI.Integration, error)
 	DisIntegrate(context.Context, *integrationAPI.Integration) (*integrationAPI.Integration, error)
