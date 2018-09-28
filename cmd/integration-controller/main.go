@@ -133,7 +133,9 @@ func main() {
 		c := fuse.NewConsumer(namespace, k8sCruder)
 		consumerRegistery.RegisterConsumer(c)
 		i := fuse.NewIntegrator(enmasseService, httpClient, namespace, saToken, "integration-controller")
-		integrationRegistery.RegisterIntegrator(i)
+		if err := integrationRegistery.RegisterIntegrator(i); err != nil {
+			panic(err)
+		}
 	}
 
 	integrationReconciler := integration.NewReconciler(integrationRegistery)

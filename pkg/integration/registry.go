@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
@@ -25,7 +27,7 @@ func (r Registry) RegisterIntegrator(i IntegratorDisintegrator) error {
 	defer registered.Unlock()
 	key := i.Integrates()
 	if _, ok := registered.integratorMap[key]; ok {
-		//duplicate
+		return errors.New("duplicate entry for " + key + "integrator")
 	}
 	registered.integratorMap[key] = i
 	return nil

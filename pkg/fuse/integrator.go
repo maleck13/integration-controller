@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/integr8ly/integration-controller/pkg/transport"
+
 	"github.com/sirupsen/logrus"
 
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -192,12 +194,10 @@ func (f *Integrator) createConnection(connectionType, connectionName, username, 
 		return "", err
 	}
 
-	defer rsp.Body.Close()
+	defer transport.ResponseCloser(rsp)
 	if rsp.StatusCode != 200 {
 		logrus.Infof("request headers: %+v", req.Header)
 		logrus.Info("response status from fuse ", rsp.Status)
-		bodyBytes, _ := ioutil.ReadAll(body)
-		logrus.Infof("request body: %s", string(bodyBytes))
 		rspBodyBytes, _ := ioutil.ReadAll(rsp.Body)
 		logrus.Infof("response to bad create request:: %s", string(rspBodyBytes))
 		return "", fmt.Errorf("error creating connection")

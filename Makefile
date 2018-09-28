@@ -7,6 +7,8 @@ PKG = github.com/integr8ly/integration-controller
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go -exec dirname {} \\; | sort | uniq")
 CRD_NAME=integration
 SA_TOKEN ?= $(oc sa get-token integration-controller -n $NAMESPACE)
+PACKAGES ?= $(go list ./... | grep -v /vendor/)
+
 
 .PHONY: check-gofmt
 check-gofmt:
@@ -51,7 +53,7 @@ check: check-gofmt test-unit
 	@echo errcheck
 	@errcheck -ignoretests $$(go list ./...)
 	@echo go vet
-	@go vet ./...
+	@go vet ./pkg/...
 
 .PHONY: install
 install: install_crds

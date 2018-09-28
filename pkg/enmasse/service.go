@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/integr8ly/integration-controller/pkg/transport"
+
 	errors3 "k8s.io/apimachinery/pkg/api/errors"
 
 	"k8s.io/api/core/v1"
@@ -75,7 +77,7 @@ func (s *Service) DeleteUser(userName, realm string) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to delete user from keycloak")
 	}
-	defer resp.Body.Close()
+	defer transport.ResponseCloser(resp)
 	if resp.StatusCode != http.StatusNoContent {
 		return errors.New("unexpected response code from keycloak " + resp.Status)
 	}
@@ -150,7 +152,7 @@ func (s *Service) keycloakLogin(host, user, pass string) (string, error) {
 		logrus.Errorf("error on request %+v", err)
 		return "", errors.Wrap(err, "error performing token request")
 	}
-	defer res.Body.Close()
+	defer transport.ResponseCloser(res)
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		logrus.Errorf("error reading response %+v", err)
@@ -190,7 +192,7 @@ func (s *Service) getGroups(host, token, realm string) ([]*group, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer transport.ResponseCloser(res)
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New("unexpected response code from listing groups " + res.Status)
 
@@ -220,7 +222,7 @@ func (s *Service) getUserID(host, token, realm, userName string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	defer res.Body.Close()
+	defer transport.ResponseCloser(res)
 	if res.StatusCode != http.StatusOK {
 		return "", errors.New("unexpected response code from listing groups " + res.Status)
 
@@ -261,7 +263,7 @@ func (s *Service) addUserToGroups(host, token, realm, userID string, groups []st
 				errs = errs + " " + err.Error()
 				return
 			}
-			defer res.Body.Close()
+			defer transport.ResponseCloser(res)
 			if res.StatusCode != http.StatusNoContent {
 				errs = errs + " unexpected response code adding group for user" + res.Status
 			}
@@ -310,7 +312,7 @@ func (s *Service) createUser(host, token, realm, userName, password string) (*v1
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make request to create new enmasse user")
 	}
-	defer res.Body.Close()
+	defer transport.ResponseCloser(res)
 	if res.StatusCode == http.StatusConflict {
 		logrus.Info("user already exists doing nothing")
 		return nil, &errors2.AlreadyExistsErr{}

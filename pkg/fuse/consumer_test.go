@@ -267,7 +267,7 @@ func TestConsumer_RemoveAvailableIntegration(t *testing.T) {
 			Cruder: func() FuseCrudler {
 				return &FuseCrudlerMock{
 					GetFunc: func(into sdk.Object, opts ...sdk.GetOption) error {
-						return kerr.NewNotFound(schema.GroupResource{"integreatly.org", "integration"}, "")
+						return kerr.NewNotFound(schema.GroupResource{Group: "integreatly.org", Resource: "integration"}, "")
 					},
 
 					DeleteFunc: func(object sdk.Object) error {
