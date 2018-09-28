@@ -38,7 +38,7 @@ func (c *Consumer) Exists() bool {
 	logrus.Debug("fuse consume: checking if a fuse exists")
 	syndesisList := v1alpha12.NewSyndesisList()
 	if err := c.fuseCruder.List(c.watchNS, syndesisList); err != nil {
-		logrus.Error("fuse consumer: failed to check if fuse exists ", err)
+		logrus.Error("fuse consumer: failed to check if fuse exists. Will try again ", err)
 		return false
 	}
 
@@ -60,7 +60,7 @@ func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string
 	logrus.Info("create available integration for fuses")
 	as := o.(*enmasse.AddressSpace)
 	syndesisList := v1alpha12.NewSyndesisList()
-	if err := sdk.List(c.watchNS, syndesisList); err != nil {
+	if err := c.fuseCruder.List(c.watchNS, syndesisList); err != nil {
 		logrus.Error("fuse consumer: failed to check if fuse exists ", err)
 		return nil
 	}
@@ -71,7 +71,7 @@ func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string
 		}
 		// only create if the same use owns both
 		if strings.TrimSpace(as.Annotations["enmasse.io/created-by"]) != strings.TrimSpace(s.Annotations["syndesis.io/created-by"]) {
-			logrus.Debug("found an enmasse address space but it does not match the user for fuse")
+			logrus.Debug("found an enmasse address space but it does not match the user for fuse. Ignoring")
 			continue
 		}
 		for _, endPointStatus := range as.Status.EndPointStatuses {
@@ -91,10 +91,9 @@ func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string
 					if servicePort.Name == "amqp" {
 						ingrtn.Status.IntegrationMetaData[msgHostKey] = endPointStatus.ServiceHost + ":" + fmt.Sprintf("%d", servicePort.Port)
 					}
-
 				}
 
-				if err := sdk.Create(ingrtn); err != nil && !errors.IsAlreadyExists(err) {
+				if err := c.fuseCruder.Create(ingrtn); err != nil && !errors.IsAlreadyExists(err) {
 					if errs == nil {
 						errs = err
 						continue
@@ -115,10 +114,13 @@ func (c *Consumer) RemoveAvailableIntegration(o runtime.Object, namespace string
 	ingrtn := v1alpha1.NewIntegration()
 	ingrtn.ObjectMeta.Name = name
 	ingrtn.ObjectMeta.Namespace = namespace
-	if err := sdk.Get(ingrtn); err != nil && !errors.IsNotFound(err) {
+	if err := c.fuseCruder.Get(ingrtn); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
-	return sdk.Delete(ingrtn)
+	return c.fuseCruder.Delete(ingrtn)
 }
 
 func (c *Consumer) integrationName(o runtime.Object) string {
@@ -129,4 +131,7 @@ func (c *Consumer) integrationName(o runtime.Object) string {
 //go:generate moq -out fuse_crudler_test.go . FuseCrudler
 type FuseCrudler interface {
 	List(namespace string, o sdk.Object, option ...sdk.ListOption) error
+	Get(into sdk.Object, opts ...sdk.GetOption) error
+	Create(object sdk.Object) (err error)
+	Delete(object sdk.Object) error
 }

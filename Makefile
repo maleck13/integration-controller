@@ -40,7 +40,6 @@ run:
 .PHONY: generate
 generate:
 	operator-sdk generate k8s
-	go get github.com/matryer/moq
 	@go generate ./...
 
 compile:

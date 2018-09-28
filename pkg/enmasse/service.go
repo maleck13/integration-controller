@@ -10,6 +10,10 @@ import (
 	"strings"
 	"sync"
 
+	errors3 "k8s.io/apimachinery/pkg/api/errors"
+
+	"k8s.io/api/core/v1"
+
 	"github.com/pborman/uuid"
 
 	errors2 "github.com/integr8ly/integration-controller/pkg/errors"
@@ -30,6 +34,7 @@ type Service struct {
 	k8sclient   kubernetes.Interface
 	routeClient routev1.RoutesGetter
 	enmasseNS   string
+	currentNS   string
 	httpClient  *http.Client
 }
 
@@ -68,11 +73,14 @@ func (s *Service) DeleteUser(userName, realm string) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-
+		return errors.Wrap(err, "failed to delete user from keycloak")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		return errors.New("unexpected response code from keycloak " + resp.Status)
+	}
+	if err := s.k8sclient.CoreV1().Secrets(s.currentNS).Delete(realm+"-"+userName, metav1.NewDeleteOptions(0)); err != nil && !errors3.IsNotFound(err) {
+		logrus.Error("failed to clean up user secret", err)
 	}
 	return nil
 }
@@ -92,18 +100,30 @@ func (s *Service) CreateUser(userName, realm string) (*v1alpha1.User, error) {
 	pass := string(cred.Data["admin.password"])
 	user := string(cred.Data["admin.username"])
 	host := "https://" + route.Spec.Host
+
 	authToken, err := s.keycloakLogin("https://"+route.Spec.Host, string(user), string(pass))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to login to enmasse keycloak")
 	}
 	userPass := uuid.New()
 	u, err := s.createUser(host, authToken, realm, userName, userPass)
+	secretName := realm + "-" + userName
 	if err != nil && errors2.IsAlreadyExistsErr(err) {
-		logrus.Debug("enmasse keycloak user already exists")
-		return &v1alpha1.User{Password: pass, UserName: userName}, nil
+		logrus.Debug("enmasse keycloak user already exists reading credentials from secret")
+		us, err := s.k8sclient.CoreV1().Secrets(s.currentNS).Get(secretName, metav1.GetOptions{})
+		if err != nil {
+
+		}
+		return &v1alpha1.User{Password: us.StringData["pass"], UserName: us.StringData["user"]}, nil
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create new user for enmasse")
+	}
+	// add a secret with this users details
+	us := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName},
+		StringData: map[string]string{"user": u.UserName, "pass": u.Password}}
+	if _, err := s.k8sclient.CoreV1().Secrets(s.currentNS).Create(us); err != nil {
+		logrus.Error("failed to store user credentials in a secret ", err)
 	}
 	return u, nil
 }
