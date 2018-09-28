@@ -6,6 +6,7 @@ TAG = 0.0.1
 PKG = github.com/integr8ly/integration-controller
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go -exec dirname {} \\; | sort | uniq")
 CRD_NAME=integration
+SA_TOKEN ?= $(oc sa get-token integration-controller -n $NAMESPACE)
 
 .PHONY: check-gofmt
 check-gofmt:
@@ -35,7 +36,7 @@ build-image:
 
 .PHONY: run
 run:
-	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug"
+	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug --sa-token=${SA_TOKEN}"
 
 .PHONY: generate
 generate:
@@ -55,24 +56,26 @@ check: check-gofmt test-unit
 .PHONY: install
 install: install_crds
 	-oc new-project $(NAMESPACE)
-	-oc create -f deploy/enmasse-cluster-role.yaml
+	-oc create -f deploy/enmasse/enmasse-cluster-role.yaml
 	-oc create -f deploy/applications/route-services-viewer-cluster-role.yaml
 	-oc create -f deploy/sa.yaml -n $(NAMESPACE)
-	-kubectl create --insecure-skip-tls-verify -f deploy/rbac.yaml -n $(NAMESPACE)
+	-oc create --insecure-skip-tls-verify -f deploy/rbac.yaml -n $(NAMESPACE)
 
 .PHONY: install_crds
 install_crds:
-	-kubectl create -f deploy/crd.yaml
+	-oc create -f deploy/crd.yaml
 
 
 .PHONY: uninstall
 uninstall:
-	-kubectl delete role ${PROJECT} -n $(NAMESPACE)
-	-kubectl delete rolebinding default-account-${PROJECT} -n $(NAMESPACE)
-	-kubectl delete crd ${CRD_NAME}s.integr8ly.org
-	-kubectl delete namespace $(NAMESPACE)
+	-oc delete -f deploy/enmasse-cluster-role.yaml
+	-oc delete -f deploy/applications/route-services-viewer-cluster-role.yaml
+	-oc delete role ${PROJECT} -n $(NAMESPACE)
+	-oc delete rolebinding default-account-${PROJECT} -n $(NAMESPACE)
+	-oc delete crd ${CRD_NAME}s.integr8ly.org
+	-oc delete namespace $(NAMESPACE)
 
 
 .PHONY: create-examples
 create-examples:
-		-kubectl create -f deploy/examples/${CRD_NAME}.json -n $(NAMESPACE)
+		-oc create -f deploy/examples/${CRD_NAME}.json -n $(NAMESPACE)

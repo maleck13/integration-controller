@@ -23,7 +23,7 @@ In this example there are alot of direct api calls. However the hope is to remov
 # Status
 POC
 
-# Test it locally
+# Run it locally
 
 *Note*: You will need a running Kubernetes or OpenShift cluster to use the Operator
 

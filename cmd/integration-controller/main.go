@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/integr8ly/integration-controller/pkg/k8s"
@@ -53,6 +53,7 @@ var (
 	enmasseNS           string
 	allowInsecure       bool
 	enabledIntegrations string
+	saToken             string
 )
 
 func init() {
@@ -63,6 +64,7 @@ func init() {
 	flagset.StringVar(&enmasseNS, "enmasse-namespace", "enmasse", "set the namespace the target enmasse is running in")
 	flagset.BoolVar(&allowInsecure, "allow-insecure", false, "if true invalid certs will be accepted")
 	flagset.StringVar(&enabledIntegrations, "watch-for", "all", "comma separated list of services the integration controller should watch resources on. Options: all, enmasse, routes")
+	flagset.StringVar(&saToken, "sa-token", "", "pass in an sa token to use. useful for local dev")
 }
 
 func main() {
@@ -115,23 +117,22 @@ func main() {
 		// registries
 		consumerRegistery    = consumer.Registry{}
 		integrationRegistery = integration.Registry{}
-		token                = os.Getenv("SA_TOKEN")
 	)
 
-	if token == "" {
+	if saToken == "" {
 		//read token from file
 		data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 		if err != nil {
 			panic(err)
 		}
-		token = string(data)
+		saToken = string(data)
 	}
 
 	{
 		// add fuse integrations
 		c := fuse.NewConsumer(namespace, k8sCruder)
 		consumerRegistery.RegisterConsumer(c)
-		i := fuse.NewIntegrator(enmasseService, httpClient, namespace, token, "integration-controller")
+		i := fuse.NewIntegrator(enmasseService, httpClient, namespace, saToken, "integration-controller")
 		integrationRegistery.RegisterIntegrator(i)
 	}
 
@@ -140,10 +141,22 @@ func main() {
 	mainHandler := dispatch.NewHandler(k8Client)
 	mainHandler.(*dispatch.Handler).AddHandler(integrationReconciler)
 	mainHandler.(*dispatch.Handler).AddHandler(addressSpaceReconciler)
-	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
-
-	sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
+	enabled := strings.Split(enabledIntegrations, ",")
+	if isEnabled("enmasse", enabled) {
+		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
+		logrus.Infof("Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
+	}
 	sdk.Watch(resource, kind, namespace, resync)
+	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 	sdk.Handle(mainHandler)
 	sdk.Run(context.TODO())
+}
+
+func isEnabled(watchService string, enabled []string) bool {
+	for _, e := range enabled {
+		if watchService == e || e == "all" {
+			return true
+		}
+	}
+	return false
 }
