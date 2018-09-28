@@ -254,7 +254,7 @@ func TestIntegrator_DisIntegrate(t *testing.T) {
 					t.Fatal("expected one call to request do but got ", len(mock2.DoCalls()))
 				}
 			},
-			ExpectError: true,†
+			ExpectError: true,
 		},
 	}
 

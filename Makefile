@@ -55,6 +55,9 @@ check: check-gofmt test-unit
 .PHONY: install
 install: install_crds
 	-oc new-project $(NAMESPACE)
+	-oc create -f deploy/enmasse-cluster-role.yaml
+	-oc create -f deploy/applications/route-services-viewer-cluster-role.yaml
+	-oc create -f deploy/sa.yaml -n $(NAMESPACE)
 	-kubectl create --insecure-skip-tls-verify -f deploy/rbac.yaml -n $(NAMESPACE)
 
 .PHONY: install_crds

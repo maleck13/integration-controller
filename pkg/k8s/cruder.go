@@ -16,3 +16,7 @@ func (k *K8sCrudler) Get(into sdk.Object, opts ...sdk.GetOption) error {
 func (k *K8sCrudler) Create(object sdk.Object) (err error) {
 	return sdk.Create(object)
 }
+
+func (k *K8sCrudler) Delete(object sdk.Object) error {
+	return sdk.Delete(object)
+}

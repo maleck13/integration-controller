@@ -47,11 +47,12 @@ func printConfig() {
 
 var (
 	//various configuration flags
-	resyncPeriod  int
-	logLevel      string
-	fuseNS        string
-	enmasseNS     string
-	allowInsecure bool
+	resyncPeriod        int
+	logLevel            string
+	fuseNS              string
+	enmasseNS           string
+	allowInsecure       bool
+	enabledIntegrations string
 )
 
 func init() {
@@ -61,6 +62,7 @@ func init() {
 	flagset.StringVar(&fuseNS, "fuse-namespace", "", "set the namespace the target fuse is running in")
 	flagset.StringVar(&enmasseNS, "enmasse-namespace", "enmasse", "set the namespace the target enmasse is running in")
 	flagset.BoolVar(&allowInsecure, "allow-insecure", false, "if true invalid certs will be accepted")
+	flagset.StringVar(&enabledIntegrations, "watch-for", "all", "comma separated list of services the integration controller should watch resources on. Options: all, enmasse, routes")
 }
 
 func main() {
@@ -129,7 +131,7 @@ func main() {
 		// add fuse integrations
 		c := fuse.NewConsumer(namespace, k8sCruder)
 		consumerRegistery.RegisterConsumer(c)
-		i := fuse.NewIntegrator(enmasseService, k8Client, httpClient, namespace, token, "integration-controller")
+		i := fuse.NewIntegrator(enmasseService, httpClient, namespace, token, "integration-controller")
 		integrationRegistery.RegisterIntegrator(i)
 	}
 
