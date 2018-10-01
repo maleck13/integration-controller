@@ -23,8 +23,6 @@ test-unit:
 
 .PHONY: setup
 setup:
-	#@echo Installing operator-sdk cli
-	#cd vendor/github.com/operator-framework/operator-sdk/commands/operator-sdk/ && go install .
 	@echo Installing dep
 	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	@echo Installing errcheck

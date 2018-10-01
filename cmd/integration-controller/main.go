@@ -146,7 +146,7 @@ func main() {
 	enabled := strings.Split(enabledIntegrations, ",")
 	if isEnabled("enmasse", enabled) {
 		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
-		logrus.Infof("Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
+		logrus.Infof("EnMasse integrations enabled. Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
 	}
 	sdk.Watch(resource, kind, namespace, resync)
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
