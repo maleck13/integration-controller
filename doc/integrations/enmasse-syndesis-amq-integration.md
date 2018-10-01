@@ -46,12 +46,12 @@ https://github.com/syndesisio/syndesis/issues/3692
 - It will also crate a resource to represent the discovered connection.
 - Syndesis in will see this resource and create the connection.
 
-### Updating the connection
+### Updating the integration
 - The integration controller will ensure the connection resource is kept up to date
 - Sysdesis will ensure the created connection is up to date with the resource representation
 
 
-### Deleting the connection
+### Deleting the integration
 - The integration controller , when it sees an address-space deleted, or an integration disabled, will delete the user custom resources and the connection custom resource
 - EnMasse will clean up the user from keycloak
 - Syndesis will clean up the connection 
