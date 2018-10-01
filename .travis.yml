@@ -5,4 +5,4 @@ go:
 - 1.10.x
 
 script:
-- cd $HOME/gopath/src/github.com/integreatly/integration-controller && make setup check compile
+- cd $HOME/gopath/src/github.com/integr8ly/integration-controller && make setup check compile
