@@ -28,7 +28,7 @@ POC
 *Note*: You will need a running Kubernetes or OpenShift cluster to use the Operator
 
 - clone this repo to `$GOPATH/src/github.com/integr8ly/integration-controller`
-- run `make setup install run`
+- run `make setup install run SA_TOKEN=$(oc sa get-token integration-controller)`
 
 Note that you only need to run `setup` the first time. After that you can simply run `make run`.
 
