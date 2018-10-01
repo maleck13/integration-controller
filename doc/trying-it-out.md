@@ -1,7 +1,6 @@
 # Overview
 
-This document will walk you through trying out the integration controller.
-
+This document will walk you through trying out the integration controller and enabling an integration.
 
 - We will use an integreatly cluster 
 - setup a user namespace
