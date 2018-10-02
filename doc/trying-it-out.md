@@ -41,5 +41,4 @@ Using an account with cluster admin perform the following steps to install the c
 
     ```
        oc create -f deploy/operator-deploy.yaml -n <FUSE_NAMESPACE>
-    
     ```    

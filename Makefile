@@ -60,7 +60,9 @@ install: install_crds
 	-oc create -f deploy/enmasse/enmasse-cluster-role.yaml
 	-oc create -f deploy/applications/route-services-viewer-cluster-role.yaml
 	-oc create -f deploy/sa.yaml -n $(NAMESPACE)
-	-oc create --insecure-skip-tls-verify -f deploy/rbac.yaml -n $(NAMESPACE)
+	-oc create -f deploy/rbac.yaml -n $(NAMESPACE)
+	-cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n enmasse -f -
+	-cat deploy/applications/route-services-viewer-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n $(NAMESPACE) -f -
 
 .PHONY: install_crds
 install_crds:
@@ -69,11 +71,14 @@ install_crds:
 
 .PHONY: uninstall
 uninstall:
-	-oc delete -f deploy/enmasse-cluster-role.yaml
+	-oc delete -f deploy/enmasse/enmasse-cluster-role.yaml
 	-oc delete -f deploy/applications/route-services-viewer-cluster-role.yaml
-	-oc delete role ${PROJECT} -n $(NAMESPACE)
-	-oc delete rolebinding default-account-${PROJECT} -n $(NAMESPACE)
-	-oc delete crd ${CRD_NAME}s.integr8ly.org
+	-oc delete -f deploy/sa.yaml -n $(NAMESPACE)
+	-oc delete -f deploy/rbac.yaml -n $(NAMESPACE)
+	-cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc delete -n enmasse -f -
+	-cat deploy/applications/route-services-viewer-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc delete -n $(NAMESPACE) -f -
+	-oc delete -f deploy/crd.yaml
+	-oc delete rolebindings -l for=integration-controller -n enmasse
 	-oc delete namespace $(NAMESPACE)
 
 

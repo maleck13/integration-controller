@@ -3,6 +3,8 @@ kind: RoleBinding
 metadata:
   generateName: integration-controller-enmasse-view-
   namespace: enmasse
+  labels:
+    for: integration-controller
 roleRef:
   name: enmasse-integration-viewer
 subjects:
