@@ -44,7 +44,7 @@ https://github.com/syndesisio/syndesis/issues/3692
 - If found it will create an integration object
 - When enabled, the integration controller will create a new custom resource to add a new user to the EnMasse Realm
 - It will also crate a resource to represent the discovered connection.
-- Syndesis in will see this resource and create the connection.
+- Syndesis will see this resource and create the connection.
 
 ### Updating the integration
 - The integration controller will ensure the connection resource is kept up to date
@@ -53,5 +53,5 @@ https://github.com/syndesisio/syndesis/issues/3692
 
 ### Deleting the integration
 - The integration controller , when it sees an address-space deleted, or an integration disabled, will delete the user custom resources and the connection custom resource
-- EnMasse will clean up the user from keycloak
+- EnMasse will clean up the user from keycloak when the address-space is deleted
 - Syndesis will clean up the connection 
