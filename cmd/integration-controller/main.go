@@ -139,17 +139,14 @@ func main() {
 	}
 
 	integrationReconciler := integration.NewReconciler(integrationRegistery)
-	addressSpaceReconciler := enmasse.NewReconciler(consumerRegistery, namespace)
-	mainHandler := dispatch.NewHandler(k8Client)
-	mainHandler.(*dispatch.Handler).AddHandler(integrationReconciler)
-	mainHandler.(*dispatch.Handler).AddHandler(addressSpaceReconciler)
+	mainHandler := dispatch.NewHandler(consumerRegistery, integrationReconciler, namespace)
 	enabled := strings.Split(enabledIntegrations, ",")
 	if isEnabled("enmasse", enabled) {
 		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
 		logrus.Infof("EnMasse integrations enabled. Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
 	}
 	sdk.Watch(resource, kind, namespace, resync)
-	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
+	logrus.Infof("Watching %s, %s, %sx, %d", resource, kind, namespace, resyncPeriod)
 	sdk.Handle(mainHandler)
 	sdk.Run(context.TODO())
 }

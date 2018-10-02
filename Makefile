@@ -6,7 +6,7 @@ TAG = 0.0.1
 PKG = github.com/integr8ly/integration-controller
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go -exec dirname {} \\; | sort | uniq")
 CRD_NAME=integration
-SA_TOKEN ?= $(oc sa get-token integration-controller -n $NAMESPACE)
+SA_TOKEN ?= $(oc sa get-token integration-controller)
 PACKAGES ?= $(go list ./... | grep -v /vendor/)
 
 
@@ -30,12 +30,13 @@ setup:
 	@echo setup complete run make build deploy to build and deploy the operator to a local cluster
 
 
-.PHONY: build
+.PHONY: build-image
 build-image:
 	operator-sdk build quay.io/${ORG}/${PROJECT}:${TAG}
 
 .PHONY: run
 run:
+	oc project ${NAMESPACE}
 	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug --sa-token=${SA_TOKEN}"
 
 .PHONY: generate

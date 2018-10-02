@@ -4,38 +4,80 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
+
+	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
+
+	"github.com/pkg/errors"
+
+	"github.com/integr8ly/integration-controller/pkg/integration"
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func NewHandler(k8Client kubernetes.Interface) sdk.Handler {
+func NewHandler(consumerRegistry integration.ConsumerRegistery, integrationRec *integration.Reconciler, watchNS string) sdk.Handler {
 	return &Handler{
-		k8Client:    k8Client,
-		gvkHandlers: map[schema.GroupVersionKind]sdk.Handler{},
+		consumerRegistery:     consumerRegistry,
+		integrationReconciler: integrationRec,
+		watchNS:               watchNS,
 	}
 }
 
 type Handler struct {
-	// Fill me
-	k8Client    kubernetes.Interface
-	gvkHandlers map[schema.GroupVersionKind]sdk.Handler
+	consumerRegistery     integration.ConsumerRegistery
+	watchNS               string
+	integrationReconciler *integration.Reconciler
+}
+
+func handleConsumerErr(existingErr, err error) error {
+	var retErr error
+	if existingErr == nil {
+		retErr = err
+	} else {
+		retErr = errors.WithMessage(retErr, err.Error())
+	}
+	return retErr
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
-	if handler, ok := h.gvkHandlers[event.Object.GetObjectKind().GroupVersionKind()]; ok {
-		return handler.Handle(ctx, event)
+
+	object := event.Object
+	var multiErr error
+	switch object.(type) {
+	case *v1alpha1.Integration:
+		return h.integrationReconciler.Handle(ctx, event)
+	default:
+		logrus.Debug("handing type ", object.GetObjectKind().GroupVersionKind())
+		consumers := h.consumerRegistery.ConsumersForKind(object.GetObjectKind().GroupVersionKind())
+		if event.Deleted == true {
+			for _, consumer := range consumers {
+				if consumer.Exists() {
+					if err := consumer.RemoveAvailableIntegration(object, h.watchNS); err != nil {
+						multiErr = handleConsumerErr(multiErr, err)
+						continue
+					}
+				}
+			}
+			if multiErr != nil {
+				return multiErr
+			}
+			return nil
+		}
+		//creation
+		for _, consumer := range consumers {
+			if consumer.Exists() {
+				if err := consumer.Validate(object); err != nil {
+					multiErr = handleConsumerErr(multiErr, err)
+					continue
+				}
+				if err := consumer.CreateAvailableIntegration(object, h.watchNS, false); err != nil {
+					multiErr = handleConsumerErr(multiErr, err)
+					continue
+				}
+			}
+		}
+		if multiErr != nil {
+			return multiErr
+		}
+		return nil
 	}
-	logrus.Error("no handler registered for group version kind " + event.Object.GetObjectKind().GroupVersionKind().String())
-	return nil
-}
-
-type MuxHandler interface {
-	sdk.Handler
-	GVK() schema.GroupVersionKind
-}
-
-func (h *Handler) AddHandler(handler MuxHandler) {
-	h.gvkHandlers[handler.GVK()] = handler
 }

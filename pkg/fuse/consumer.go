@@ -1,8 +1,11 @@
 package fuse
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -31,6 +34,10 @@ func (c *Consumer) GVKs() []schema.GroupVersionKind {
 		Kind:    enmasse.AddressSpaceKind,
 		Group:   enmasse.GroupName,
 		Version: enmasse.Version,
+	}, {
+		Kind:    "ConfigMap",
+		Group:   "",
+		Version: "v1",
 	}}
 }
 
@@ -56,9 +63,33 @@ func (c *Consumer) Validate(object runtime.Object) error {
 	return nil
 }
 
+func unMarshalAddressSpace(cfgm *v1.ConfigMap) (*enmasse.AddressSpace, error) {
+	addressSpaceData := cfgm.Data["config.json"]
+
+	var addressSpace enmasse.AddressSpace
+	err := json.Unmarshal([]byte(addressSpaceData), &addressSpace)
+	return &addressSpace, err
+}
+
+func (c *Consumer) convertToAddressSpace(o runtime.Object) (*enmasse.AddressSpace, error) {
+	switch ro := o.(type) {
+	case *v1.ConfigMap:
+		return unMarshalAddressSpace(ro)
+	case *enmasse.AddressSpace:
+		return ro, nil
+	default:
+		return nil, fmt.Errorf("unexpected type %v  cannot convert to address space", ro)
+
+	}
+}
+
 func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string, enabled bool) error {
 	logrus.Info("create available integration for fuses")
-	as := o.(*enmasse.AddressSpace)
+
+	as, err := c.convertToAddressSpace(o)
+	if err != nil {
+		return err
+	}
 	syndesisList := v1alpha12.NewSyndesisList()
 	if err := c.fuseCruder.List(c.watchNS, syndesisList); err != nil {
 		logrus.Error("fuse consumer: failed to check if fuse exists ", err)
@@ -77,7 +108,7 @@ func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string
 		for _, endPointStatus := range as.Status.EndPointStatuses {
 			if endPointStatus.Name == "messaging" {
 				ingrtn := v1alpha1.NewIntegration()
-				ingrtn.ObjectMeta.Name = c.integrationName(o)
+				ingrtn.ObjectMeta.Name = c.integrationName(as)
 				ingrtn.ObjectMeta.Namespace = namespace
 				ingrtn.Spec.Client = s.Name
 				ingrtn.Status.IntegrationMetaData = map[string]string{}
@@ -110,7 +141,11 @@ func (c *Consumer) CreateAvailableIntegration(o runtime.Object, namespace string
 func (c *Consumer) RemoveAvailableIntegration(o runtime.Object, namespace string) error {
 	logrus.Info("delete available integration called for fuse")
 	// get an integration with that name
-	name := c.integrationName(o)
+	as, err := c.convertToAddressSpace(o)
+	if err != nil {
+		return err
+	}
+	name := c.integrationName(as)
 	ingrtn := v1alpha1.NewIntegration()
 	ingrtn.ObjectMeta.Name = name
 	ingrtn.ObjectMeta.Namespace = namespace
@@ -123,9 +158,8 @@ func (c *Consumer) RemoveAvailableIntegration(o runtime.Object, namespace string
 	return c.fuseCruder.Delete(ingrtn)
 }
 
-func (c *Consumer) integrationName(o runtime.Object) string {
-	as := o.(*enmasse.AddressSpace)
-	return "enmasse-" + as.Name + "-to-fuse"
+func (c *Consumer) integrationName(o *enmasse.AddressSpace) string {
+	return "enmasse-" + o.Name + "-to-fuse"
 }
 
 //go:generate moq -out fuse_crudler_test.go . FuseCrudler

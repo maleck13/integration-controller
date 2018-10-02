@@ -20,7 +20,7 @@ Using an account with cluster admin perform the following steps to install the c
 - set up the rbac cluster roles
     
     ```
-        oc create -f deploy/enmasse-cluster-role.yaml
+        oc create -f deploy/enmasse/enmasse-cluster-role.yaml
         oc create -f deploy/applications/route-services-viewer-cluster-role.yaml
      ```
     
@@ -29,7 +29,7 @@ Using an account with cluster admin perform the following steps to install the c
     
 - create the needed role bindings ensure to replace the ```YOUR_FUSE_NAMESPACE``` in commands below with your own fuse namespace
     ```
-        oc create -f deploy/rbac.yaml
+        oc create -f deploy/rbac.yaml -n <FUSE_NAMESPACE>
         cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/YOUR_FUSE_NAMESPACE/g' | oc create -n enmasse -f -
         cat deploy/applications/route-services-viewer-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/YOUR_FUSE_NAMESPACE/g' | oc create -n <YOUR_NAMESPACE> -f - 
     ```
@@ -40,6 +40,6 @@ Using an account with cluster admin perform the following steps to install the c
 - deploy the controller to the fuse namespace
 
     ```
-       oc create -f operator-deploy.yaml
+       oc create -f deploy/operator-deploy.yaml -n <FUSE_NAMESPACE>
     
     ```    

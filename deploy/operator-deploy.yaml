@@ -22,6 +22,7 @@ spec:
         command:
         - integration-controller
         - --allow-insecure=true
+        - --log-level=debug
         imagePullPolicy: Always
         env:
         - name: WATCH_NAMESPACE
