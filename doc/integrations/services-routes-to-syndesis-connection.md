@@ -17,12 +17,10 @@ namespace as my Syndesis instance.
 
 # Proposed Approach
 
-## Resource Annotations
-There may be some existing annotations we could use below is an example of what these annotations would look like:
-```
-    integration/fuse-connection: "enabled"
-    integration/fuse-connection-swagger: "someswagerlocation"
-``` 
+## Resource Annotations and Labels
+There is an existing proposal for service discovery. We should follow its guidelines for defining annotations
+
+[service discovery proposal](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/network/service-discovery.md) 
     
 ## A note on watching user namespaces
 - The integration controller lives within a "managed-services-x" namespace. There could by many of these namespaces. 
