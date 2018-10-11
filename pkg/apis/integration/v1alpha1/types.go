@@ -4,6 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -24,11 +25,14 @@ type Integration struct {
 	Status            IntegrationStatus `json:"status,omitempty"`
 }
 
-func NewIntegration() *Integration {
+func NewIntegration(name string) *Integration {
 	return &Integration{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Integration",
 			APIVersion: GroupName + "/" + Version,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
 		},
 	}
 }
@@ -43,6 +47,13 @@ type IntegrationStatus struct {
 	Phase               Phase             `json:"phase"`
 	IntegrationMetaData map[string]string `json:"metaData"`
 	StatusMessage       string            `json:"statusMessage"`
+	DiscoveryResource   DiscoveryResource `json:"discovery_resource"`
+}
+
+type DiscoveryResource struct {
+	schema.GroupVersionKind
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type Phase string

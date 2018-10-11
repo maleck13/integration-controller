@@ -25,6 +25,8 @@ spec:
         - --log-level=debug
         imagePullPolicy: Always
         env:
+        - name: USER_NAMESPACES
+          value: myproject
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:

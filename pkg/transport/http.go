@@ -2,6 +2,7 @@ package transport
 
 import (
 	"crypto/tls"
+	"io"
 	"net/http"
 	"time"
 
@@ -16,8 +17,8 @@ func DefaultHTTPClient(insecure bool) *http.Client {
 	return c
 }
 
-func ResponseCloser(response *http.Response) {
-	if err := response.Body.Close(); err != nil {
+func ResponseCloser(closer io.Closer) {
+	if err := closer.Close(); err != nil {
 		logrus.Error("failed to close response body")
 	}
 }

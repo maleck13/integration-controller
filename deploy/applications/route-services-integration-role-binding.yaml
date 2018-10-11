@@ -1,9 +1,9 @@
 apiVersion: authorization.openshift.io/v1
 kind: RoleBinding
 metadata:
-  generateName: integration-controller-route-viewer
+  generateName: integration-controller-route-services
 roleRef:
-  name: route-service-viewer
+  name: route-service-integrator
 subjects:
 - kind: ServiceAccount
   name: integration-controller

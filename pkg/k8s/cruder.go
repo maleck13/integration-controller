@@ -20,3 +20,7 @@ func (k *K8sCrudler) Create(object sdk.Object) (err error) {
 func (k *K8sCrudler) Delete(object sdk.Object) error {
 	return sdk.Delete(object)
 }
+
+func (k *K8sCrudler) Update(object sdk.Object) error {
+	return sdk.Update(object)
+}

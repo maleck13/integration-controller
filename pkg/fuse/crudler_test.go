@@ -9,18 +9,19 @@ import (
 )
 
 var (
-	lockFuseCrudlerMockCreate sync.RWMutex
-	lockFuseCrudlerMockDelete sync.RWMutex
-	lockFuseCrudlerMockGet    sync.RWMutex
-	lockFuseCrudlerMockList   sync.RWMutex
+	lockCrudlerMockCreate sync.RWMutex
+	lockCrudlerMockDelete sync.RWMutex
+	lockCrudlerMockGet    sync.RWMutex
+	lockCrudlerMockList   sync.RWMutex
+	lockCrudlerMockUpdate sync.RWMutex
 )
 
-// FuseCrudlerMock is a mock implementation of FuseCrudler.
+// CrudlerMock is a mock implementation of Crudler.
 //
-//     func TestSomethingThatUsesFuseCrudler(t *testing.T) {
+//     func TestSomethingThatUsesCrudler(t *testing.T) {
 //
-//         // make and configure a mocked FuseCrudler
-//         mockedFuseCrudler := &FuseCrudlerMock{
+//         // make and configure a mocked Crudler
+//         mockedCrudler := &CrudlerMock{
 //             CreateFunc: func(object sdk.Object) error {
 // 	               panic("TODO: mock out the Create method")
 //             },
@@ -33,13 +34,16 @@ var (
 //             ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 // 	               panic("TODO: mock out the List method")
 //             },
+//             UpdateFunc: func(object sdk.Object) error {
+// 	               panic("TODO: mock out the Update method")
+//             },
 //         }
 //
-//         // TODO: use mockedFuseCrudler in code that requires FuseCrudler
+//         // TODO: use mockedCrudler in code that requires Crudler
 //         //       and then make assertions.
 //
 //     }
-type FuseCrudlerMock struct {
+type CrudlerMock struct {
 	// CreateFunc mocks the Create method.
 	CreateFunc func(object sdk.Object) error
 
@@ -51,6 +55,9 @@ type FuseCrudlerMock struct {
 
 	// ListFunc mocks the List method.
 	ListFunc func(namespace string, o sdk.Object, option ...sdk.ListOption) error
+
+	// UpdateFunc mocks the Update method.
+	UpdateFunc func(object sdk.Object) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -80,75 +87,80 @@ type FuseCrudlerMock struct {
 			// Option is the option argument value.
 			Option []sdk.ListOption
 		}
+		// Update holds details about calls to the Update method.
+		Update []struct {
+			// Object is the object argument value.
+			Object sdk.Object
+		}
 	}
 }
 
 // Create calls CreateFunc.
-func (mock *FuseCrudlerMock) Create(object sdk.Object) error {
+func (mock *CrudlerMock) Create(object sdk.Object) error {
 	if mock.CreateFunc == nil {
-		panic("FuseCrudlerMock.CreateFunc: method is nil but FuseCrudler.Create was just called")
+		panic("CrudlerMock.CreateFunc: method is nil but Crudler.Create was just called")
 	}
 	callInfo := struct {
 		Object sdk.Object
 	}{
 		Object: object,
 	}
-	lockFuseCrudlerMockCreate.Lock()
+	lockCrudlerMockCreate.Lock()
 	mock.calls.Create = append(mock.calls.Create, callInfo)
-	lockFuseCrudlerMockCreate.Unlock()
+	lockCrudlerMockCreate.Unlock()
 	return mock.CreateFunc(object)
 }
 
 // CreateCalls gets all the calls that were made to Create.
 // Check the length with:
-//     len(mockedFuseCrudler.CreateCalls())
-func (mock *FuseCrudlerMock) CreateCalls() []struct {
+//     len(mockedCrudler.CreateCalls())
+func (mock *CrudlerMock) CreateCalls() []struct {
 	Object sdk.Object
 } {
 	var calls []struct {
 		Object sdk.Object
 	}
-	lockFuseCrudlerMockCreate.RLock()
+	lockCrudlerMockCreate.RLock()
 	calls = mock.calls.Create
-	lockFuseCrudlerMockCreate.RUnlock()
+	lockCrudlerMockCreate.RUnlock()
 	return calls
 }
 
 // Delete calls DeleteFunc.
-func (mock *FuseCrudlerMock) Delete(object sdk.Object) error {
+func (mock *CrudlerMock) Delete(object sdk.Object) error {
 	if mock.DeleteFunc == nil {
-		panic("FuseCrudlerMock.DeleteFunc: method is nil but FuseCrudler.Delete was just called")
+		panic("CrudlerMock.DeleteFunc: method is nil but Crudler.Delete was just called")
 	}
 	callInfo := struct {
 		Object sdk.Object
 	}{
 		Object: object,
 	}
-	lockFuseCrudlerMockDelete.Lock()
+	lockCrudlerMockDelete.Lock()
 	mock.calls.Delete = append(mock.calls.Delete, callInfo)
-	lockFuseCrudlerMockDelete.Unlock()
+	lockCrudlerMockDelete.Unlock()
 	return mock.DeleteFunc(object)
 }
 
 // DeleteCalls gets all the calls that were made to Delete.
 // Check the length with:
-//     len(mockedFuseCrudler.DeleteCalls())
-func (mock *FuseCrudlerMock) DeleteCalls() []struct {
+//     len(mockedCrudler.DeleteCalls())
+func (mock *CrudlerMock) DeleteCalls() []struct {
 	Object sdk.Object
 } {
 	var calls []struct {
 		Object sdk.Object
 	}
-	lockFuseCrudlerMockDelete.RLock()
+	lockCrudlerMockDelete.RLock()
 	calls = mock.calls.Delete
-	lockFuseCrudlerMockDelete.RUnlock()
+	lockCrudlerMockDelete.RUnlock()
 	return calls
 }
 
 // Get calls GetFunc.
-func (mock *FuseCrudlerMock) Get(into sdk.Object, opts ...sdk.GetOption) error {
+func (mock *CrudlerMock) Get(into sdk.Object, opts ...sdk.GetOption) error {
 	if mock.GetFunc == nil {
-		panic("FuseCrudlerMock.GetFunc: method is nil but FuseCrudler.Get was just called")
+		panic("CrudlerMock.GetFunc: method is nil but Crudler.Get was just called")
 	}
 	callInfo := struct {
 		Into sdk.Object
@@ -157,16 +169,16 @@ func (mock *FuseCrudlerMock) Get(into sdk.Object, opts ...sdk.GetOption) error {
 		Into: into,
 		Opts: opts,
 	}
-	lockFuseCrudlerMockGet.Lock()
+	lockCrudlerMockGet.Lock()
 	mock.calls.Get = append(mock.calls.Get, callInfo)
-	lockFuseCrudlerMockGet.Unlock()
+	lockCrudlerMockGet.Unlock()
 	return mock.GetFunc(into, opts...)
 }
 
 // GetCalls gets all the calls that were made to Get.
 // Check the length with:
-//     len(mockedFuseCrudler.GetCalls())
-func (mock *FuseCrudlerMock) GetCalls() []struct {
+//     len(mockedCrudler.GetCalls())
+func (mock *CrudlerMock) GetCalls() []struct {
 	Into sdk.Object
 	Opts []sdk.GetOption
 } {
@@ -174,16 +186,16 @@ func (mock *FuseCrudlerMock) GetCalls() []struct {
 		Into sdk.Object
 		Opts []sdk.GetOption
 	}
-	lockFuseCrudlerMockGet.RLock()
+	lockCrudlerMockGet.RLock()
 	calls = mock.calls.Get
-	lockFuseCrudlerMockGet.RUnlock()
+	lockCrudlerMockGet.RUnlock()
 	return calls
 }
 
 // List calls ListFunc.
-func (mock *FuseCrudlerMock) List(namespace string, o sdk.Object, option ...sdk.ListOption) error {
+func (mock *CrudlerMock) List(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 	if mock.ListFunc == nil {
-		panic("FuseCrudlerMock.ListFunc: method is nil but FuseCrudler.List was just called")
+		panic("CrudlerMock.ListFunc: method is nil but Crudler.List was just called")
 	}
 	callInfo := struct {
 		Namespace string
@@ -194,16 +206,16 @@ func (mock *FuseCrudlerMock) List(namespace string, o sdk.Object, option ...sdk.
 		O:         o,
 		Option:    option,
 	}
-	lockFuseCrudlerMockList.Lock()
+	lockCrudlerMockList.Lock()
 	mock.calls.List = append(mock.calls.List, callInfo)
-	lockFuseCrudlerMockList.Unlock()
+	lockCrudlerMockList.Unlock()
 	return mock.ListFunc(namespace, o, option...)
 }
 
 // ListCalls gets all the calls that were made to List.
 // Check the length with:
-//     len(mockedFuseCrudler.ListCalls())
-func (mock *FuseCrudlerMock) ListCalls() []struct {
+//     len(mockedCrudler.ListCalls())
+func (mock *CrudlerMock) ListCalls() []struct {
 	Namespace string
 	O         sdk.Object
 	Option    []sdk.ListOption
@@ -213,8 +225,39 @@ func (mock *FuseCrudlerMock) ListCalls() []struct {
 		O         sdk.Object
 		Option    []sdk.ListOption
 	}
-	lockFuseCrudlerMockList.RLock()
+	lockCrudlerMockList.RLock()
 	calls = mock.calls.List
-	lockFuseCrudlerMockList.RUnlock()
+	lockCrudlerMockList.RUnlock()
+	return calls
+}
+
+// Update calls UpdateFunc.
+func (mock *CrudlerMock) Update(object sdk.Object) error {
+	if mock.UpdateFunc == nil {
+		panic("CrudlerMock.UpdateFunc: method is nil but Crudler.Update was just called")
+	}
+	callInfo := struct {
+		Object sdk.Object
+	}{
+		Object: object,
+	}
+	lockCrudlerMockUpdate.Lock()
+	mock.calls.Update = append(mock.calls.Update, callInfo)
+	lockCrudlerMockUpdate.Unlock()
+	return mock.UpdateFunc(object)
+}
+
+// UpdateCalls gets all the calls that were made to Update.
+// Check the length with:
+//     len(mockedCrudler.UpdateCalls())
+func (mock *CrudlerMock) UpdateCalls() []struct {
+	Object sdk.Object
+} {
+	var calls []struct {
+		Object sdk.Object
+	}
+	lockCrudlerMockUpdate.RLock()
+	calls = mock.calls.Update
+	lockCrudlerMockUpdate.RUnlock()
 	return calls
 }

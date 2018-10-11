@@ -18,18 +18,18 @@ import (
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 )
 
-func TestConsumer_Exists(t *testing.T) {
+func TestAddressSpaceConsumer_Exists(t *testing.T) {
 	cases := []struct {
 		Name        string
 		WatchNS     string
 		ShouldExist bool
-		Cruder      func() FuseCrudler
+		Cruder      func() Crudler
 		Validate    func(t *testing.T, mock *FuseCrudlerMock)
 	}{{
 		Name:        "test exists returns true when a fuse exists",
 		WatchNS:     "test",
 		ShouldExist: true,
-		Cruder: func() FuseCrudler {
+		Cruder: func() Crudler {
 			return &FuseCrudlerMock{
 				ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 					slist := o.(*v1alpha1.SyndesisList)
@@ -50,7 +50,7 @@ func TestConsumer_Exists(t *testing.T) {
 			Name:        "test exists returns false when a fuse is missing",
 			WatchNS:     "test",
 			ShouldExist: false,
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						return nil
@@ -67,7 +67,7 @@ func TestConsumer_Exists(t *testing.T) {
 			Name:        "test exists returns false when err reading fuse",
 			WatchNS:     "test",
 			ShouldExist: false,
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						return errors.New("some error ")
@@ -85,7 +85,7 @@ func TestConsumer_Exists(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			mockCrud := tc.Cruder()
-			consumer := NewConsumer(tc.WatchNS, mockCrud)
+			consumer := NewAddressSpaceConsumer(tc.WatchNS, mockCrud)
 			exists := consumer.Exists()
 			if exists != tc.ShouldExist {
 				t.Fatal("expected fuse to exists")
@@ -98,7 +98,7 @@ func TestConsumer_Exists(t *testing.T) {
 	}
 }
 
-func TestConsumer_Validate(t *testing.T) {
+func TestAddressSpaceConsumer_Validate(t *testing.T) {
 	cases := []struct {
 		Name        string
 		WatchNS     string
@@ -123,7 +123,7 @@ func TestConsumer_Validate(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			consumer := NewConsumer(tc.WatchNS, nil)
+			consumer := NewAddressSpaceConsumer(tc.WatchNS, nil)
 			err := consumer.Validate(tc.Address)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")
@@ -136,11 +136,11 @@ func TestConsumer_Validate(t *testing.T) {
 	}
 }
 
-func TestConsumer_CreateAvailableIntegration(t *testing.T) {
+func TestAddressSpaceConsumer_CreateAvailableIntegration(t *testing.T) {
 	cases := []struct {
 		Name        string
 		WatchNS     string
-		Cruder      func() FuseCrudler
+		Cruder      func() Crudler
 		Address     *v1.AddressSpace
 		Enabled     bool
 		ExpectError bool
@@ -149,7 +149,7 @@ func TestConsumer_CreateAvailableIntegration(t *testing.T) {
 		{
 			Name:    "test create available integration from address-space successful",
 			WatchNS: "test",
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						slist := o.(*v1alpha1.SyndesisList)
@@ -180,7 +180,7 @@ func TestConsumer_CreateAvailableIntegration(t *testing.T) {
 		{
 			Name:    "test create available integration from address-space fails",
 			WatchNS: "test",
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						slist := o.(*v1alpha1.SyndesisList)
@@ -213,7 +213,7 @@ func TestConsumer_CreateAvailableIntegration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			mockCrud := tc.Cruder()
-			consumer := NewConsumer(tc.WatchNS, mockCrud)
+			consumer := NewAddressSpaceConsumer(tc.WatchNS, mockCrud)
 			err := consumer.CreateAvailableIntegration(tc.Address, tc.WatchNS, tc.Enabled)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")
@@ -230,18 +230,18 @@ func TestConsumer_CreateAvailableIntegration(t *testing.T) {
 
 }
 
-func TestConsumer_RemoveAvailableIntegration(t *testing.T) {
+func TestAddressSpaceConsumer_RemoveAvailableIntegration(t *testing.T) {
 	cases := []struct {
 		Name        string
 		WatchNS     string
-		Cruder      func() FuseCrudler
+		Cruder      func() Crudler
 		Address     *v1.AddressSpace
 		ExpectError bool
 		Validate    func(t *testing.T, mock *FuseCrudlerMock)
 	}{
 		{
 			Name: "test removing integration successful",
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					GetFunc: func(into sdk.Object, opts ...sdk.GetOption) error {
 						return nil
@@ -264,7 +264,7 @@ func TestConsumer_RemoveAvailableIntegration(t *testing.T) {
 		},
 		{
 			Name: "test removing integration fails when integration not found",
-			Cruder: func() FuseCrudler {
+			Cruder: func() Crudler {
 				return &FuseCrudlerMock{
 					GetFunc: func(into sdk.Object, opts ...sdk.GetOption) error {
 						return kerr.NewNotFound(schema.GroupResource{Group: "integreatly.org", Resource: "integration"}, "")
@@ -290,7 +290,7 @@ func TestConsumer_RemoveAvailableIntegration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			cruder := tc.Cruder()
-			consumer := NewConsumer(tc.WatchNS, cruder)
+			consumer := NewAddressSpaceConsumer(tc.WatchNS, cruder)
 			err := consumer.RemoveAvailableIntegration(tc.Address, tc.WatchNS)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")

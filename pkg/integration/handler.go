@@ -35,7 +35,7 @@ func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 	if !ok {
 		return errors.New("expected a integration object but got " + event.Object.GetObjectKind().GroupVersionKind().String())
 	}
-	logrus.Info("handling integration ", integration.Name, integration.Spec)
+	logrus.Debug("handling integration ", integration.Name, integration.Spec)
 	integrator := h.integrationReg.IntegratorFor(integration)
 	if integrator == nil {
 		return errors.New("no integrators registered for " + integration.Spec.ServiceProvider)
@@ -47,32 +47,42 @@ func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 		if err != nil {
+			errMsg := errors.Wrap(err, "failed to accept new integration").Error()
+			ic.Status.StatusMessage = errMsg
+			logrus.Error(errMsg)
+			if err := sdk.Update(ic); err != nil {
+				return errors.Wrap(err, errMsg+" : failed to update the integration")
+			}
 			return errors.Wrap(err, "failed to accept new integration")
 		}
-
 		return sdk.Update(ic)
 	}
 	if event.Deleted || (integration.Status.Phase == v1alpha1.PhaseComplete && integration.Spec.Enabled == false) {
 		itg, err := integrator.DisIntegrate(ctx, integration)
 		if err != nil {
+			itg.Status.StatusMessage = err.Error()
+			logrus.Error(err)
+			if updateErr := sdk.Update(itg); updateErr != nil {
+				return errors.Wrap(updateErr, err.Error()+" : failed to update the integration")
+			}
 			return err
 		}
 		if _, err := v1alpha1.RemoveFinalizer(itg, v1alpha1.Finalizer); err != nil {
 			return err
 		}
-		if itg != nil {
-			return sdk.Update(itg)
-		}
+
+		return sdk.Update(itg)
 	}
 	itg, err := integrator.Integrate(ctx, integration)
 	if err != nil {
+		itg.Status.StatusMessage = err.Error()
+		logrus.Error(err)
+		if updateErr := sdk.Update(itg); updateErr != nil {
+			return errors.Wrap(updateErr, err.Error()+" : failed to update the integration")
+		}
 		return err
 	}
-	if itg != nil {
-		return sdk.Update(itg)
-	}
-
-	return nil
+	return sdk.Update(itg)
 }
 
 type validator func(integration *v1alpha1.Integration) error

@@ -1,11 +1,11 @@
 apiVersion: authorization.openshift.io/v1
 kind: ClusterRole
 metadata:
-  name: route-service-viewer
+  name: route-service-integrator
 rules:
 - apiGroups: ["route.openshift.io"]
   resources: ["routes"]
   verbs: ["get","list", "watch"]
 - apiGroups: [""]
   resources: ["services"]
-  verbs: ["get","list","watch"]
+  verbs: ["get","list","watch","update"]

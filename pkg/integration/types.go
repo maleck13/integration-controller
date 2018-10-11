@@ -16,7 +16,7 @@ type IntegratorDisintegrator interface {
 	// DisIntegrate removes anything set up in the consuming and producing services created during integration
 	DisIntegrate(context.Context, *integrationAPI.Integration) (*integrationAPI.Integration, error)
 	// Integrates announces to the integration registry which services this integrator can handle
-	Integrates() string
+	Integrates() []Type
 	// Validate validates the integration object and ensure everything that is needed is present
 	Validate(integration *integrationAPI.Integration) error
 }
@@ -42,4 +42,13 @@ type ConsumerRegistery interface {
 type IntegratorRegistery interface {
 	IntegratorFor(*integrationAPI.Integration) IntegratorDisintegrator
 	RegisterIntegrator(i IntegratorDisintegrator) error
+}
+
+type Type struct {
+	Provider string
+	Type     string
+}
+
+func (t Type) String() string {
+	return t.Provider + ":" + t.Type
 }

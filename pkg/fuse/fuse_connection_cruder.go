@@ -2,166 +2,37 @@ package fuse
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
 	"github.com/integr8ly/integration-controller/pkg/transport"
-
-	"github.com/sirupsen/logrus"
-
-	errors2 "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
-const (
-	connectionIDKey     = "connectionID"
-	realmKey            = "realm"
-	msgHostKey          = "msgHost"
-	integrationTypeAMQP = "amqp"
-	integrationTypeHTTP = "api"
-)
-
-var validIntegrationTypes = []string{integrationTypeAMQP, integrationTypeHTTP}
-
-//go:generate moq -out requester_test.go . httpRequester
-type httpRequester interface {
-	Do(r *http.Request) (*http.Response, error)
+type ConnectionCruder struct {
+	namespace   string
+	httpClient  httpRequester
+	saUser      string
+	saToken     string
+	xsrfToken   string
+	servicePort string
 }
 
-//go:generate moq -out enmasse_service_test.go . EnMasseService
-type EnMasseService interface {
-	CreateUser(userName, realm string) (*v1alpha1.User, error)
-	DeleteUser(userName, realm string) error
+func NewConnectionCruder(httpClient httpRequester, namespace, saToken, saUser string) *ConnectionCruder {
+	return &ConnectionCruder{
+		namespace:  namespace,
+		saToken:    saToken,
+		saUser:     saUser,
+		httpClient: httpClient,
+		xsrfToken:  "awesome",
+	}
 }
 
-type Integrator struct {
-	enmasseService EnMasseService
-	xsrfToken      string
-	saToken        string
-	saUser         string
-	namespace      string
-	httpClient     httpRequester
-}
-
-func NewIntegrator(service EnMasseService, httpClient httpRequester, namespace, saToken, saUser string) *Integrator {
-	return &Integrator{enmasseService: service, xsrfToken: "awesome",
-		saToken: saToken, saUser: saUser, namespace: namespace, httpClient: httpClient}
-}
-
-// Integrate calls out to the fuse api to create a new connection
-func (f *Integrator) Integrate(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
-	logrus.Debug("handling fuse integration ", integration.Spec.IntegrationType)
-	switch integration.Spec.IntegrationType {
-	case integrationTypeAMQP:
-		intCp := integration.DeepCopy()
-		return f.addAMQPIntegration(ctx, intCp)
-	}
-	return nil, nil
-}
-
-// DisIntegrate removes the enmasse user and fuse connection
-func (f *Integrator) DisIntegrate(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
-	logrus.Debug("handling fuse removing integration ", integration.Spec.IntegrationType)
-	switch integration.Spec.IntegrationType {
-	case "amqp":
-		return f.removeAMQPIntegration(ctx, integration)
-	}
-	return nil, nil
-}
-
-func (f *Integrator) Integrates() string {
-	return v1alpha1.FuseIntegrationTarget
-}
-
-func (f *Integrator) Validate(i *v1alpha1.Integration) error {
-	valid := false
-	var err error
-	for _, it := range validIntegrationTypes {
-		if i.Spec.IntegrationType == it {
-			valid = true
-		}
-	}
-	if valid != true {
-		err = errors.New("unknown integration type should be one of " + strings.Join(validIntegrationTypes, ","))
-		return err
-	}
-	if _, ok := i.Status.IntegrationMetaData[msgHostKey]; !ok && i.Spec.IntegrationType == "amqp" {
-		return errors.New("expected to find the key " + msgHostKey + " in the metadata but it was missing")
-	}
-	if _, ok := i.Status.IntegrationMetaData[realmKey]; !ok && i.Spec.IntegrationType == "amqp" {
-		return errors.New("expected to find the key " + realmKey + " in the metadata but it was missing")
-	}
-	return nil
-}
-
-func (f *Integrator) removeAMQPIntegration(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
-	ic := integration.DeepCopy()
-	realm := ic.Status.IntegrationMetaData[realmKey]
-	if err := f.enmasseService.DeleteUser(integration.Name, realm); err != nil {
-		//dont fail here we still want to remove the connection
-		logrus.Error("failed to remove user when removing enmasse fuse integration")
-	}
-	if err := f.deleteConnection("amqp", ic.Status.IntegrationMetaData[connectionIDKey]); err != nil {
-		return nil, err
-	}
-	return ic, nil
-}
-
-func (f *Integrator) addAMQPIntegration(ctx context.Context, integration *v1alpha1.Integration) (*v1alpha1.Integration, error) {
-	ic := integration.DeepCopy()
-	realm := ic.Status.IntegrationMetaData[realmKey]
-	//need to avoid creating users so need determinstic user name
-	//TODO once a user can be added via CRD update
-	u, err := f.enmasseService.CreateUser(integration.Name, realm)
-	if err != nil && !errors2.IsAlreadyExists(err) {
-		return nil, errors.Wrap(err, "integration failed. Could not generate new user in enmasse keycloak")
-	}
-	amqpHost := fmt.Sprintf("amqp://%s?amqp.saslMechanisms=PLAIN", integration.Status.IntegrationMetaData[msgHostKey])
-	id, err := f.createConnection("amqp", integration.Name, u.UserName, u.Password, amqpHost)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create amqp connection in fuse")
-	}
-	ic.Status.Phase = v1alpha1.PhaseComplete
-	if id != "" {
-		ic.Status.IntegrationMetaData[connectionIDKey] = id
-	}
-	return ic, nil
-}
-
-func (f *Integrator) deleteConnection(connectionType, connectionID string) error {
-	host := "syndesis-server." + f.namespace + ".svc"
-	logrus.Info("Deleting connection")
-	apiHost := "http://" + host + "/api/v1/connections/" + connectionID
-	req, err := http.NewRequest("DELETE", apiHost, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := f.httpClient.Do(f.setHeaders(req))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusNoContent {
-		return errors.New("unexpected response from fuse api status code " + resp.Status)
-	}
-	return nil
-}
-
-func (f *Integrator) setHeaders(req *http.Request) *http.Request {
-	req.Header.Set("X-FORWARDED-USER", f.saUser)
-	req.Header.Set("X-FORWARDED-ACCESS-TOKEN", f.saToken)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("SYNDESIS-XSRF-TOKEN", f.xsrfToken)
-	return req
-}
-
-func (f *Integrator) createConnection(connectionType, connectionName, username, password, url string) (string, error) {
-	host := "syndesis-server." + f.namespace + ".svc"
+func (cc *ConnectionCruder) CreateConnection(connectionType, connectionName, username, password, url string) (string, error) {
+	host := "syndesis-server." + cc.namespace + ".svc"
 	logrus.Info("Creating connection")
 	apiHost := "http://" + host + "/api/v1/connections"
 	var body *bytes.Buffer
@@ -187,14 +58,16 @@ func (f *Integrator) createConnection(connectionType, connectionName, username, 
 	if err != nil {
 		return "", err
 	}
-	rsp, err := f.httpClient.Do(f.setHeaders(req))
+	rsp, err := cc.httpClient.Do(cc.setHeaders(req))
 	if err != nil {
-		rspBodyBytes, _ := ioutil.ReadAll(rsp.Body)
-		logrus.Infof("response to bad create request:: %s", string(rspBodyBytes))
+		if rsp != nil && rsp.Body != nil {
+			rspBodyBytes, _ := ioutil.ReadAll(rsp.Body)
+			logrus.Infof("response to bad create request:: %s", string(rspBodyBytes))
+		}
 		return "", err
 	}
 
-	defer transport.ResponseCloser(rsp)
+	defer transport.ResponseCloser(rsp.Body)
 	if rsp.StatusCode != 200 {
 		logrus.Infof("request headers: %+v", req.Header)
 		logrus.Info("response status from fuse ", rsp.Status)
@@ -210,6 +83,32 @@ func (f *Integrator) createConnection(connectionType, connectionName, username, 
 	}
 	return connResp.ID, nil
 
+}
+
+func (cc *ConnectionCruder) DeleteConnection(connectionType, connectionID string) error {
+	host := "syndesis-server." + cc.namespace + ".svc"
+	logrus.Info("Deleting connection")
+	apiHost := "http://" + host + "/api/v1/connections/" + connectionID
+	req, err := http.NewRequest("DELETE", apiHost, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := cc.httpClient.Do(cc.setHeaders(req))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return errors.New("unexpected response from fuse api status code " + resp.Status)
+	}
+	return nil
+}
+
+func (cc *ConnectionCruder) setHeaders(req *http.Request) *http.Request {
+	req.Header.Set("X-FORWARDED-USER", cc.saUser)
+	req.Header.Set("X-FORWARDED-ACCESS-TOKEN", cc.saToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("SYNDESIS-XSRF-TOKEN", cc.xsrfToken)
+	return req
 }
 
 func newHTTPConnectionCreatePostBody(url, name string) (*bytes.Buffer, error) {

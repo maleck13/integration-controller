@@ -1,5 +1,6 @@
 ORG=integreatly
 NAMESPACE=integration-services
+USER_NAMESPACE=
 PROJECT=integration-controller
 SHELL = /bin/bash
 TAG = 0.0.1
@@ -37,7 +38,7 @@ build-image:
 .PHONY: run
 run:
 	oc project ${NAMESPACE}
-	operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug --sa-token=${SA_TOKEN}"
+	export USER_NAMESPACES=${USER_NAMESPACE} && operator-sdk up local --namespace=${NAMESPACE} --operator-flags="--resync=20 --log-level=debug --sa-token=${SA_TOKEN}"
 
 .PHONY: generate
 generate:
@@ -54,15 +55,20 @@ check: check-gofmt test-unit
 	@echo go vet
 	@go vet ./pkg/...
 
+.PHONY: deploy
+deploy:
+	-oc delete -f deploy/operator-deploy.yaml -n $(NAMESPACE)
+	-oc create -f deploy/operator-deploy.yaml -n $(NAMESPACE)
+
 .PHONY: install
 install: install_crds
 	-oc new-project $(NAMESPACE)
 	-oc create -f deploy/enmasse/enmasse-cluster-role.yaml
-	-oc create -f deploy/applications/route-services-viewer-cluster-role.yaml
+	-oc create -f deploy/applications/route-services-integration-cluster-role.yaml
 	-oc create -f deploy/sa.yaml -n $(NAMESPACE)
 	-oc create -f deploy/rbac.yaml -n $(NAMESPACE)
 	-cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n enmasse -f -
-	-cat deploy/applications/route-services-viewer-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n $(NAMESPACE) -f -
+	-cat deploy/applications/route-services-integration-cluster-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n $(USER_NAMESPACE) -f -
 
 .PHONY: install_crds
 install_crds:
@@ -72,11 +78,11 @@ install_crds:
 .PHONY: uninstall
 uninstall:
 	-oc delete -f deploy/enmasse/enmasse-cluster-role.yaml
-	-oc delete -f deploy/applications/route-services-viewer-cluster-role.yaml
+	-oc delete -f deploy/applications/route-services-integration-cluster-role.yaml
 	-oc delete -f deploy/sa.yaml -n $(NAMESPACE)
 	-oc delete -f deploy/rbac.yaml -n $(NAMESPACE)
 	-cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc delete -n enmasse -f -
-	-cat deploy/applications/route-services-viewer-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc delete -n $(NAMESPACE) -f -
+	-cat deploy/applications/route-services-integration-cluster-role.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc delete -n $(NAMESPACE) -f -
 	-oc delete -f deploy/crd.yaml
 	-oc delete rolebindings -l for=integration-controller -n enmasse
 	-oc delete namespace $(NAMESPACE)

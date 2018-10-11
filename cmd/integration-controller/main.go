@@ -5,9 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/integr8ly/integration-controller/pkg/k8s"
 
@@ -22,7 +25,7 @@ import (
 	"github.com/integr8ly/integration-controller/pkg/integration"
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
 
-	"github.com/integr8ly/integration-controller/pkg/dispatch"
+	_ "github.com/integr8ly/integration-controller/pkg/openshift"
 	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
@@ -42,7 +45,7 @@ func printConfig() {
 	logrus.Info("config: EnMasse namespace is set to " + enmasseNS)
 	logrus.Info("config: fuse namespace is set to " + fuseNS)
 	logrus.Info("config: resync interval is set to", resyncPeriod)
-	logrus.Info("consig: loglevel ", logLevel)
+	logrus.Info("config: loglevel ", logLevel)
 }
 
 var (
@@ -54,6 +57,8 @@ var (
 	allowInsecure       bool
 	enabledIntegrations string
 	saToken             string
+	// env var
+	envUserNamespaces string
 )
 
 func init() {
@@ -75,6 +80,8 @@ func main() {
 	} else {
 		logrus.SetLevel(logLevel)
 	}
+
+	envUserNamespaces = os.Getenv("USER_NAMESPACES")
 
 	sdk.ExposeMetricsPort()
 
@@ -117,6 +124,7 @@ func main() {
 		// registries
 		consumerRegistery    = consumer.Registry{}
 		integrationRegistery = integration.Registry{}
+		additional           = strings.Split(envUserNamespaces, ",")
 	)
 
 	if saToken == "" {
@@ -128,26 +136,61 @@ func main() {
 		saToken = string(data)
 	}
 
+	// add fuse integrations
 	{
-		// add fuse integrations
-		c := fuse.NewConsumer(namespace, k8sCruder)
-		consumerRegistery.RegisterConsumer(c)
-		i := fuse.NewIntegrator(enmasseService, httpClient, namespace, saToken, "integration-controller")
+		fuseConnectionCruder := fuse.NewConnectionCruder(httpClient, namespace, saToken, "integration-controller")
+		i := fuse.NewIntegrator(enmasseService, fuseConnectionCruder)
 		if err := integrationRegistery.RegisterIntegrator(i); err != nil {
 			panic(err)
 		}
+		httpI := fuse.NewHTTPIntegrator(k8sCruder, fuseConnectionCruder)
+		if err := integrationRegistery.RegisterIntegrator(httpI); err != nil {
+			panic(err)
+		}
+		ac := fuse.NewAddressSpaceConsumer(namespace, k8sCruder)
+		consumerRegistery.RegisterConsumer(ac)
+		rc := fuse.NewServiceRouteConsumer(namespace, routeClient, k8sCruder)
+		consumerRegistery.RegisterConsumer(rc)
+
 	}
 
-	integrationReconciler := integration.NewReconciler(integrationRegistery)
-	mainHandler := dispatch.NewHandler(consumerRegistery, integrationReconciler, namespace)
+	integrationHandler := integration.NewReconciler(integrationRegistery)
+	consumerHandler := consumer.NewHandler(consumerRegistery, integrationHandler, namespace)
 	enabled := strings.Split(enabledIntegrations, ",")
+
 	if isEnabled("enmasse", enabled) {
+		// TODO post 0.23.0 move to watching just this namespace
 		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
 		logrus.Infof("EnMasse integrations enabled. Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
 	}
+
 	sdk.Watch(resource, kind, namespace, resync)
 	logrus.Infof("Watching %s, %s, %sx, %d", resource, kind, namespace, resyncPeriod)
-	sdk.Handle(mainHandler)
+
+	//refactor seems redundant
+	userNSResoures := []schema.GroupVersionKind{
+		{
+			Group:   "route.openshift.io",
+			Version: "v1",
+			Kind:    "Route",
+		},
+		{
+			Group:   "",
+			Version: "v1",
+			Kind:    "Service",
+		},
+	}
+
+	for _, ans := range additional {
+		if ans == "" {
+			continue
+		}
+		for _, gvk := range userNSResoures {
+			sdk.Watch(gvk.GroupVersion().String(), gvk.Kind, ans, resync)
+			logrus.Infof("Watching additional ns for %s, %s, %s", gvk.GroupVersion().String(), gvk.Kind, ans)
+		}
+	}
+	sdk.Handle(consumerHandler)
 	sdk.Run(context.TODO())
 }
 

@@ -1,4 +1,4 @@
-package dispatch
+package consumer
 
 import (
 	"context"
@@ -76,7 +76,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			}
 		}
 		if multiErr != nil {
-			return multiErr
+			logrus.Error("failed to setup integration object ", multiErr)
 		}
 		return nil
 	}
