@@ -28,7 +28,7 @@ import (
 type ServiceRouteConsumer struct {
 	*FuseExistsChecker
 	ns          string
-	fuseCruder  Crudler
+	crudler     Crudler
 	routeClient routev1.RoutesGetter
 }
 
@@ -39,17 +39,18 @@ const (
 	serviceDiscoveryPath   = "discovery.syndesis/path"
 )
 
-func NewServiceRouteConsumer(ns string, routeClient routev1.RoutesGetter, fuseCruder Crudler) *ServiceRouteConsumer {
+func NewServiceRouteConsumer(ns string, routeClient routev1.RoutesGetter, crudler Crudler) *ServiceRouteConsumer {
 	return &ServiceRouteConsumer{
-		FuseExistsChecker: NewFuseExistsChecker(ns, fuseCruder),
+		FuseExistsChecker: NewFuseExistsChecker(ns, crudler),
 		ns:                ns,
-		fuseCruder:        fuseCruder,
+		crudler:           crudler,
 		routeClient:       routeClient,
 	}
 }
 
 // Validate will check the runtime object being consumed is valid for creating the integration
 func (src *ServiceRouteConsumer) Validate(object runtime.Object) error {
+	// todo
 	return nil
 }
 
@@ -195,7 +196,7 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 	}
 
 	ingrtn := v1alpha1.NewIntegration(name(object))
-	ingrtn.Namespace = targetNS
+	ingrtn.Namespace = svc.Namespace
 	ingrtn.Status.DiscoveryResource = v1alpha1.DiscoveryResource{Namespace: svc.Namespace, Name: svc.Name, GroupVersionKind: object.GetObjectKind().GroupVersionKind()}
 	ingrtn.Spec.ServiceProvider = string(v1alpha1.FuseIntegrationTarget)
 	ingrtn.Spec.Client = accessor.GetObjectMeta().GetNamespace() + "/" + accessor.GetObjectMeta().GetName()
@@ -216,9 +217,9 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 	ingrtn.Spec.IntegrationType = connType
 	ingrtn.Spec.Enabled = autoEnabled(accessor.GetObjectMeta())
 	ingrtn.Status.IntegrationMetaData = buildParamsForConnectionType(connType, host, path, swaggerDoc, port)
-	if err := sdk.Create(ingrtn); err != nil && errors2.IsAlreadyExists(err) {
+	if err := src.crudler.Create(ingrtn); err != nil && errors2.IsAlreadyExists(err) {
 		cp := ingrtn.DeepCopy()
-		err := sdk.Get(ingrtn, sdk.WithGetOptions(&v12.GetOptions{}))
+		err := src.crudler.Get(ingrtn, sdk.WithGetOptions(&v12.GetOptions{}))
 		if err != nil {
 			logrus.Error("service_route consumer: failed to set up integration", err)
 			return err
@@ -232,7 +233,7 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 			}
 		}
 		cp.Spec.Enabled = ingrtn.Spec.Enabled
-		return sdk.Update(cp)
+		return src.crudler.Update(cp)
 	} else if err != nil && !errors2.IsAlreadyExists(err) {
 		logrus.Error("service_route consumer: failed to set up integration", err)
 	}
@@ -245,7 +246,7 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 func (src *ServiceRouteConsumer) RemoveAvailableIntegration(object runtime.Object, targetNS string) error {
 	intgration := v1alpha1.NewIntegration(name(object))
 	intgration.Namespace = targetNS
-	return src.fuseCruder.Delete(intgration)
+	return src.crudler.Delete(intgration)
 }
 
 // GVKs announces to the registry which objects this consumer is interested in

@@ -24,15 +24,15 @@ import (
 
 type AddressSpaceConsumer struct {
 	*FuseExistsChecker
-	watchNS    string
-	fuseCruder Crudler
+	watchNS           string
+	integrationCruder Crudler
 }
 
-func NewAddressSpaceConsumer(watchNS string, fuseCruder Crudler) *AddressSpaceConsumer {
+func NewAddressSpaceConsumer(watchNS string, cruder Crudler) *AddressSpaceConsumer {
 	return &AddressSpaceConsumer{
 		watchNS:           watchNS,
-		fuseCruder:        fuseCruder,
-		FuseExistsChecker: NewFuseExistsChecker(watchNS, fuseCruder),
+		integrationCruder: cruder,
+		FuseExistsChecker: NewFuseExistsChecker(watchNS, cruder),
 	}
 }
 
@@ -87,7 +87,7 @@ func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, name
 		return err
 	}
 	syndesisList := v1alpha12.NewSyndesisList()
-	if err := c.fuseCruder.List(c.watchNS, syndesisList); err != nil {
+	if err := c.integrationCruder.List(c.watchNS, syndesisList); err != nil {
 		logrus.Error("fuse consumer: failed to check if fuse exists ", err)
 		return nil
 	}
@@ -121,7 +121,7 @@ func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, name
 					}
 				}
 
-				if err := c.fuseCruder.Create(ingrtn); err != nil && !errors.IsAlreadyExists(err) {
+				if err := c.integrationCruder.Create(ingrtn); err != nil && !errors.IsAlreadyExists(err) {
 					if errs == nil {
 						errs = err
 						continue
@@ -146,13 +146,13 @@ func (c *AddressSpaceConsumer) RemoveAvailableIntegration(o runtime.Object, name
 	ingrtn := v1alpha1.NewIntegration(name)
 	ingrtn.ObjectMeta.Name = name
 	ingrtn.ObjectMeta.Namespace = namespace
-	if err := c.fuseCruder.Get(ingrtn); err != nil {
+	if err := c.integrationCruder.Get(ingrtn); err != nil {
 		if errors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
-	return c.fuseCruder.Delete(ingrtn)
+	return c.integrationCruder.Delete(ingrtn)
 }
 
 func (c *AddressSpaceConsumer) integrationName(o *enmasse.AddressSpace) string {

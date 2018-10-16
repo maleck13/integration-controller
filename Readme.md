@@ -4,7 +4,8 @@ Knows how to enable various integrations between certain sets of products.
 
 Things it can currently integrate
 
-- EnMasse address-spaces to fuse online as connections
+- EnMasse address-spaces to fuse online as amqp connections
+- K8s Services to fuse online as http(s) connections
 
 # Design concept
 Integrations are made up of consumers and integrators these are the core interfaces in the controller:
