@@ -82,8 +82,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 				if len(mock2.DoCalls()) != 0 {
 					t.Fatal("expected 1 called to do request but got ", len(mock2.DoCalls()))
 				}
-				if integration != nil && integration.Status.IntegrationMetaData[connectionIDKey] != "id" {
-					t.Fatal("expected a connection id but got ", integration.Status.IntegrationMetaData[connectionIDKey])
+				if integration != nil && integration.Status.IntegrationMetaData[connectionIDKey] != "" {
+					t.Fatal("expected no connection id but got ", integration.Status.IntegrationMetaData[connectionIDKey])
 				}
 
 			},
@@ -120,8 +120,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 				if len(mock2.DoCalls()) != 1 {
 					t.Fatal("expected 1 called to do request but got ", len(mock2.DoCalls()))
 				}
-				if integration != nil && integration.Status.IntegrationMetaData[connectionIDKey] != "id" {
-					t.Fatal("expected a connection id but got ", integration.Status.IntegrationMetaData[connectionIDKey])
+				if integration != nil && integration.Status.IntegrationMetaData[connectionIDKey] != "" {
+					t.Fatal("expected no connection id but got ", integration.Status.IntegrationMetaData[connectionIDKey])
 				}
 
 			},
@@ -132,7 +132,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			enmasseMock := tc.EnMasseService()
 			httpMock := tc.HttpRequester()
-			integreator := NewIntegrator(enmasseMock, httpMock, "test", "satoken", "sauser")
+			cc := NewConnectionCruder(httpMock, "test", "satoken", "sauser")
+			integreator := NewIntegrator(enmasseMock, cc)
 			ctx := context.TODO()
 			integration, err := integreator.Integrate(ctx, tc.Integration)
 			if tc.ExpectError && err == nil {
@@ -263,7 +264,8 @@ func TestIntegrator_DisIntegrate(t *testing.T) {
 			enmasseSvc := tc.EnMasseService()
 			httpRequester := tc.HttpRequester()
 			ctx := context.TODO()
-			disintegrator := NewIntegrator(enmasseSvc, httpRequester, "test", "token", "sauser")
+			cc := NewConnectionCruder(httpRequester, "test", "satoken", "sauser")
+			disintegrator := NewIntegrator(enmasseSvc, cc)
 			it, err := disintegrator.DisIntegrate(ctx, tc.Integration)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")
