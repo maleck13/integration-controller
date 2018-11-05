@@ -4,15 +4,31 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"runtime"
+	"strings"
 	"time"
+
+	"github.com/integr8ly/integration-controller/pkg/fuse"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/integr8ly/integration-controller/pkg/k8s"
+
+	"github.com/integr8ly/integration-controller/pkg/transport"
+
+	"github.com/integr8ly/integration-controller/pkg/consumer"
+
+	fuseClient "github.com/integr8ly/integration-controller/pkg/fuse/client"
 
 	"github.com/integr8ly/integration-controller/pkg/enmasse"
 
 	"github.com/integr8ly/integration-controller/pkg/integration"
 	"github.com/operator-framework/operator-sdk/pkg/k8sclient"
 
-	"github.com/integr8ly/integration-controller/pkg/dispatch"
+	_ "github.com/integr8ly/integration-controller/pkg/openshift"
+	routev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -26,27 +42,48 @@ func printVersion() {
 	logrus.Infof("operator-sdk Version: %v", sdkVersion.Version)
 }
 
+func printConfig() {
+	logrus.Info("config: insecure requests to services with self signed certs are enabled: ", allowInsecure)
+	logrus.Info("config: EnMasse namespace is set to " + enmasseNS)
+	logrus.Info("config: fuse namespace is set to " + fuseNS)
+	logrus.Info("config: resync interval is set to", resyncPeriod)
+	logrus.Info("config: loglevel ", logLevel)
+}
+
 var (
-	resyncPeriod int
-	logLevel     string
+	//various configuration flags
+	resyncPeriod        int
+	logLevel            string
+	fuseNS              string
+	enmasseNS           string
+	allowInsecure       bool
+	enabledIntegrations string
+	saToken             string
+	// env var
+	envUserNamespaces string
 )
 
 func init() {
 	flagset := flag.CommandLine
-	flagset.IntVar(&resyncPeriod, "resync", 10, "change the resync period")
+	flagset.IntVar(&resyncPeriod, "resync", 30, "change the resync period for the watched resources")
 	flagset.StringVar(&logLevel, "log-level", logrus.Level.String(logrus.InfoLevel), "Log level to use. Possible values: panic, fatal, error, warn, info, debug")
+	flagset.StringVar(&fuseNS, "fuse-namespace", "", "set the namespace the target fuse is running in")
+	flagset.StringVar(&enmasseNS, "enmasse-namespace", "enmasse", "set the namespace the target enmasse is running in")
+	flagset.BoolVar(&allowInsecure, "allow-insecure", false, "if true invalid certs will be accepted")
+	flagset.StringVar(&enabledIntegrations, "watch-for", "all", "comma separated list of services the integration controller should watch resources on. Options: all, enmasse, routes")
+	flagset.StringVar(&saToken, "sa-token", "", "pass in an sa token to use. useful for local dev")
 }
 
 func main() {
 	flag.Parse()
 	logLevel, err := logrus.ParseLevel(logLevel)
-	logrus.Info("loglevel ", logLevel, resyncPeriod)
 	if err != nil {
 		logrus.Errorf("Failed to parse log level: %v", err)
 	} else {
 		logrus.SetLevel(logLevel)
 	}
-	printVersion()
+
+	envUserNamespaces = os.Getenv("USER_NAMESPACES")
 
 	sdk.ExposeMetricsPort()
 
@@ -57,20 +94,113 @@ func main() {
 		logrus.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
+	if fuseNS == "" {
+		fuseNS = namespace
+	}
+
 	resync, err := time.ParseDuration(fmt.Sprintf("%vs", resyncPeriod))
 	if err != nil {
 		panic(err)
 	}
 
-	k8Client := k8sclient.GetKubeClient()
-	mainHandler := dispatch.NewHandler(k8Client)
-	mainHandler.(*dispatch.Handler).AddHandler(&integration.Reconciler{})
-	mainHandler.(*dispatch.Handler).AddHandler(&enmasse.Reconciler{})
-	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
+	printVersion()
+	printConfig()
 
-	sdk.Watch("v1", "ConfigMap", namespace, resync, sdk.WithLabelSelector("type=address-space"))
+	k8Client := k8sclient.GetKubeClient()
+
+	routeClient, err := routev1.NewForConfig(k8sclient.GetKubeConfig())
+	if err != nil {
+		panic(err)
+	}
+
+	if allowInsecure {
+		logrus.Info("allowing insecure client requests. Accepting self signed certs")
+	}
+
+	var (
+		httpClient = transport.DefaultHTTPClient(allowInsecure)
+		k8sCruder  = &k8s.K8sCrudler{}
+		// enmasseService
+		enmasseService = enmasse.NewService(k8Client, routeClient, httpClient, enmasseNS)
+
+		// registries
+		consumerRegistery    = consumer.Registry{}
+		integrationRegistery = integration.Registry{}
+		additional           = strings.Split(envUserNamespaces, ",")
+	)
+
+	if saToken == "" {
+		//read token from file
+		data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+		if err != nil {
+			panic(err)
+		}
+		saToken = string(data)
+	}
+
+	// add fuse integrations
+	{
+		fuseConnectionCruder := fuseClient.New(httpClient, k8Client.CoreV1().Secrets(namespace), namespace, saToken, "integration-controller")
+		i := fuse.NewAddressSpaceIntegrator(enmasseService, fuseConnectionCruder)
+		if err := integrationRegistery.RegisterIntegrator(i); err != nil {
+			panic(err)
+		}
+		httpI := fuse.NewHTTPIntegrator(k8sCruder, fuseConnectionCruder, namespace)
+		if err := integrationRegistery.RegisterIntegrator(httpI); err != nil {
+			panic(err)
+		}
+		ac := fuse.NewAddressSpaceConsumer(namespace, k8sCruder)
+		consumerRegistery.RegisterConsumer(ac)
+		rc := fuse.NewServiceRouteConsumer(namespace, routeClient, k8sCruder)
+		consumerRegistery.RegisterConsumer(rc)
+
+	}
+
+	integrationHandler := integration.NewReconciler(integrationRegistery)
+	consumerHandler := consumer.NewHandler(consumerRegistery, integrationHandler, namespace)
+	enabled := strings.Split(enabledIntegrations, ",")
+
+	if isEnabled("enmasse", enabled) {
+		// TODO post 0.23.0 move to watching just this namespace
+		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
+		logrus.Infof("EnMasse integrations enabled. Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
+	}
+	// watch for integrations
 	sdk.Watch(resource, kind, namespace, resync)
-	//sdk.Watch(v1.SchemeGroupVersion.String(), v1.AddressKind, namespace, resync)
-	sdk.Handle(mainHandler)
+	logrus.Infof("Watching %s, %s, %sx, %d", resource, kind, namespace, resyncPeriod)
+
+	//refactor seems redundant
+	userNSResoures := []schema.GroupVersionKind{
+		{
+			Group:   "",
+			Version: "v1",
+			Kind:    "Service",
+		},
+		{
+			Group:   "integreatly.org",
+			Version: "v1alpha1",
+			Kind:    "Integration",
+		},
+	}
+
+	for _, ans := range additional {
+		if ans == "" {
+			continue
+		}
+		for _, gvk := range userNSResoures {
+			sdk.Watch(gvk.GroupVersion().String(), gvk.Kind, ans, resync)
+			logrus.Infof("Watching additional ns for %s, %s, %s", gvk.GroupVersion().String(), gvk.Kind, ans)
+		}
+	}
+	sdk.Handle(consumerHandler)
 	sdk.Run(context.TODO())
+}
+
+func isEnabled(watchService string, enabled []string) bool {
+	for _, e := range enabled {
+		if watchService == e || e == "all" {
+			return true
+		}
+	}
+	return false
 }

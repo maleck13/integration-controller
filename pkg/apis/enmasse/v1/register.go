@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	Version     = "v1"
-	GroupName   = "enmasse.io"
-	AddressKind = "Address"
+	Version          = "v1alpha1"
+	GroupName        = "enmasse.io"
+	AddressSpaceKind = "AddressSpace"
 )
 
 var (

@@ -4,7 +4,7 @@ metadata:
   name: integration-controller
 rules:
 - apiGroups:
-  - integration.integreatly.org
+  - integreatly.org
   resources:
   - "*"
   verbs:
@@ -30,16 +30,22 @@ rules:
   - statefulsets
   verbs:
   - "*"
+- apiGroups:
+  - syndesis.io
+  resources:
+  - "*"
+  verbs:
+  - "*"
 
 ---
 
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
-  name: default-account-integration-controller
+  name: ns-integration-controller
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: integration-controller
 roleRef:
   kind: Role
   name: integration-controller
