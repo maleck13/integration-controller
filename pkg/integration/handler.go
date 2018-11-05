@@ -82,6 +82,10 @@ func (h *Reconciler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 		return err
 	}
+	logrus.Debug("updating integration ", integration, " to ", itg)
+	if integration.Status.Phase == itg.Status.Phase {
+		return nil
+	}
 	return sdk.Update(itg)
 }
 

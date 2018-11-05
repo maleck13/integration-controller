@@ -95,8 +95,15 @@ func (src *ServiceRouteConsumer) connectionType(object runtime.Object, meta v12.
 	if connType != "" {
 		return connType, nil
 	}
-	// check for a route
-	r, err := src.getRouteForService(*s)
+	scheme, err := src.getScheme(s)
+	if err != nil {
+		return connType, err
+	}
+	return scheme, nil
+}
+
+func (src *ServiceRouteConsumer) getScheme(service *v1.Service) (string, error) {
+	r, err := src.getRouteForService(*service)
 	if err != nil && !errors3.IsNotFoundErr(err) {
 		return "", err
 	}
@@ -107,7 +114,7 @@ func (src *ServiceRouteConsumer) connectionType(object runtime.Object, meta v12.
 		return "https", nil
 	}
 	// still not found look for well known ports
-	for _, p := range s.Spec.Ports {
+	for _, p := range service.Spec.Ports {
 		scheme := schemeFromPort(p.Port)
 		if scheme != "" {
 			return scheme, nil
@@ -116,13 +123,14 @@ func (src *ServiceRouteConsumer) connectionType(object runtime.Object, meta v12.
 	return "", errors.New("failed to determine connection type ")
 }
 
-func buildParamsForConnectionType(connType, host, path, descDoc string, port int32) map[string]string {
+func buildParamsForConnectionType(scheme, host, path, descDoc string, port int32, external string) map[string]string {
 	//todo move out to const
 	p := map[string]string{
-		"scheme":               connType,
+		"scheme":               scheme,
 		"description-doc-path": descDoc,
 		"api-path":             path,
 		"host":                 host,
+		"external-route":       external,
 	}
 	if port != 0 {
 		p["port"] = strconv.Itoa(int(port))
@@ -154,7 +162,8 @@ func (src *ServiceRouteConsumer) getRouteForService(service v1.Service) (*v13.Ro
 	return nil, &errors3.NotFoundErr{Resource: "Route"}
 }
 
-func (src *ServiceRouteConsumer) getHostPathAndPortForService(svc v1.Service) (string, string, int32, error) {
+// gross refactor
+func (src *ServiceRouteConsumer) getHostPathAndPortForService(svc v1.Service) (string, string, int32, string, error) {
 	host := svc.Name + "." + svc.Namespace + ".svc"
 	path := "/"
 	is, err := isReachable(host)
@@ -167,16 +176,16 @@ func (src *ServiceRouteConsumer) getHostPathAndPortForService(svc v1.Service) (s
 		if len(svc.Spec.Ports) == 1 {
 			port = svc.Spec.Ports[0].Port
 		}
-		return host, path, port, nil
+		return host, path, port, "false", nil
 	}
 	r, err := src.getRouteForService(svc)
 	if err != nil {
-		return "", "", port, errors.Wrap(err, "failed to get route for service")
+		return "", "", port, "false", errors.Wrap(err, "failed to get route for service")
 	}
 	if r.Spec.Port != nil {
 		port = r.Spec.Port.TargetPort.IntVal
 	}
-	return r.Spec.Host, r.Spec.Path, port, nil
+	return r.Spec.Host, r.Spec.Path, port, "true", nil
 }
 
 func name(o runtime.Object) string {
@@ -185,19 +194,20 @@ func name(o runtime.Object) string {
 }
 
 // CreateAvailableIntegration sets up and creates a new integration object
-func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Object, targetNS string, enabled bool) error {
+func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Object, enabled bool) error {
 	logrus.Debug(" consumer: creating available integration")
 	accessor := object.(v12.ObjectMetaAccessor)
 	svc := object.(*v1.Service)
+	namespace := svc.Namespace
 
-	host, path, port, err := src.getHostPathAndPortForService(*svc)
+	host, path, port, external, err := src.getHostPathAndPortForService(*svc)
 	if err != nil {
 		return err
 	}
 
 	ingrtn := v1alpha1.NewIntegration(name(object))
-	ingrtn.Namespace = svc.Namespace
-	ingrtn.Status.DiscoveryResource = v1alpha1.DiscoveryResource{Namespace: svc.Namespace, Name: svc.Name, GroupVersionKind: object.GetObjectKind().GroupVersionKind()}
+	ingrtn.Namespace = namespace
+	ingrtn.Status.DiscoveryResource = v1alpha1.DiscoveryResource{Namespace: namespace, Name: svc.Name, GroupVersionKind: object.GetObjectKind().GroupVersionKind()}
 	ingrtn.Spec.ServiceProvider = string(v1alpha1.FuseIntegrationTarget)
 	ingrtn.Spec.Client = accessor.GetObjectMeta().GetNamespace() + "/" + accessor.GetObjectMeta().GetName()
 	connType, err := src.connectionType(object, accessor.GetObjectMeta())
@@ -216,7 +226,11 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 	}
 	ingrtn.Spec.IntegrationType = connType
 	ingrtn.Spec.Enabled = autoEnabled(accessor.GetObjectMeta())
-	ingrtn.Status.IntegrationMetaData = buildParamsForConnectionType(connType, host, path, swaggerDoc, port)
+	scheme, err := src.getScheme(svc)
+	if err != nil {
+		return err
+	}
+	ingrtn.Status.IntegrationMetaData = buildParamsForConnectionType(scheme, host, path, swaggerDoc, port, external)
 	if err := src.crudler.Create(ingrtn); err != nil && errors2.IsAlreadyExists(err) {
 		cp := ingrtn.DeepCopy()
 		err := src.crudler.Get(ingrtn, sdk.WithGetOptions(&v12.GetOptions{}))
@@ -243,9 +257,10 @@ func (src *ServiceRouteConsumer) CreateAvailableIntegration(object runtime.Objec
 }
 
 // RemoveAvailableIntegration removed the integration object created by CreateAvailableIntegration
-func (src *ServiceRouteConsumer) RemoveAvailableIntegration(object runtime.Object, targetNS string) error {
+func (src *ServiceRouteConsumer) RemoveAvailableIntegration(object runtime.Object) error {
+	svc := object.(*v1.Service)
 	intgration := v1alpha1.NewIntegration(name(object))
-	intgration.Namespace = targetNS
+	intgration.Namespace = svc.Namespace
 	return src.crudler.Delete(intgration)
 }
 

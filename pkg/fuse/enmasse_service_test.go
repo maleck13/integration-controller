@@ -5,6 +5,7 @@ package fuse
 
 import (
 	"github.com/integr8ly/integration-controller/pkg/apis/integration/v1alpha1"
+	"k8s.io/api/core/v1"
 	"sync"
 )
 
@@ -19,7 +20,7 @@ var (
 //
 //         // make and configure a mocked EnMasseService
 //         mockedEnMasseService := &EnMasseServiceMock{
-//             CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, error) {
+//             CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, *v1.Secret, error) {
 // 	               panic("TODO: mock out the CreateUser method")
 //             },
 //             DeleteUserFunc: func(userName string, realm string) error {
@@ -33,7 +34,7 @@ var (
 //     }
 type EnMasseServiceMock struct {
 	// CreateUserFunc mocks the CreateUser method.
-	CreateUserFunc func(userName string, realm string) (*v1alpha1.User, error)
+	CreateUserFunc func(userName string, realm string) (*v1alpha1.User, *v1.Secret, error)
 
 	// DeleteUserFunc mocks the DeleteUser method.
 	DeleteUserFunc func(userName string, realm string) error
@@ -58,7 +59,7 @@ type EnMasseServiceMock struct {
 }
 
 // CreateUser calls CreateUserFunc.
-func (mock *EnMasseServiceMock) CreateUser(userName string, realm string) (*v1alpha1.User, error) {
+func (mock *EnMasseServiceMock) CreateUser(userName string, realm string) (*v1alpha1.User, *v1.Secret, error) {
 	if mock.CreateUserFunc == nil {
 		panic("EnMasseServiceMock.CreateUserFunc: method is nil but EnMasseService.CreateUser was just called")
 	}

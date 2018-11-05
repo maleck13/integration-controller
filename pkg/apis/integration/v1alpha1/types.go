@@ -69,6 +69,8 @@ const (
 	PhaseAccepted    Phase = "accepted"
 	PhaseIntegrating Phase = "integrating"
 	PhaseComplete    Phase = "complete"
+	PhaseCreated     Phase = "created"
+	PhaseUpdated     Phase = "updated"
 	Finalizer              = "integreatly.org"
 )
 

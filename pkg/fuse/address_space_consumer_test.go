@@ -154,7 +154,7 @@ func TestAddressSpaceConsumer_CreateAvailableIntegration(t *testing.T) {
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						slist := o.(*v1alpha1.SyndesisList)
 						slist.Items = []v1alpha1.Syndesis{
-							syndesis("me"),
+							createSyndesis("me"),
 						}
 						return nil
 					},
@@ -185,7 +185,7 @@ func TestAddressSpaceConsumer_CreateAvailableIntegration(t *testing.T) {
 					ListFunc: func(namespace string, o sdk.Object, option ...sdk.ListOption) error {
 						slist := o.(*v1alpha1.SyndesisList)
 						slist.Items = []v1alpha1.Syndesis{
-							syndesis("notme"),
+							createSyndesis("notme"),
 						}
 						return nil
 					},
@@ -214,7 +214,7 @@ func TestAddressSpaceConsumer_CreateAvailableIntegration(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			mockCrud := tc.Cruder()
 			consumer := NewAddressSpaceConsumer(tc.WatchNS, mockCrud)
-			err := consumer.CreateAvailableIntegration(tc.Address, tc.WatchNS, tc.Enabled)
+			err := consumer.CreateAvailableIntegration(tc.Address, tc.Enabled)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")
 			}
@@ -291,7 +291,7 @@ func TestAddressSpaceConsumer_RemoveAvailableIntegration(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			cruder := tc.Cruder()
 			consumer := NewAddressSpaceConsumer(tc.WatchNS, cruder)
-			err := consumer.RemoveAvailableIntegration(tc.Address, tc.WatchNS)
+			err := consumer.RemoveAvailableIntegration(tc.Address)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")
 			}
@@ -324,6 +324,6 @@ func validAddressSpace() *v1.AddressSpace {
 	}
 }
 
-func syndesis(createdBy string) v1alpha1.Syndesis {
+func createSyndesis(createdBy string) v1alpha1.Syndesis {
 	return v1alpha1.Syndesis{ObjectMeta: v12.ObjectMeta{Annotations: map[string]string{"syndesis.io/created-by": createdBy}}}
 }

@@ -7,6 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	kfake "k8s.io/client-go/kubernetes/fake"
+	ktesting "k8s.io/client-go/testing"
+
+	"github.com/integr8ly/integration-controller/pkg/fuse/client"
+	v13 "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	v12 "k8s.io/api/core/v1"
+
 	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +29,7 @@ func TestIntegrator_Integrate(t *testing.T) {
 		Integration    *v1alpha1.Integration
 		EnMasseService func() EnMasseService
 		HttpRequester  func() httpRequester
+		SecretClient   func() v13.SecretInterface
 		ExpectError    bool
 		Validate       func(*testing.T, *EnMasseServiceMock, *httpRequesterMock, *v1alpha1.Integration)
 	}{
@@ -28,8 +38,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 			Integration: validIntegration("test", "amqp", "fuse", "enmasse", map[string]string{}),
 			EnMasseService: func() EnMasseService {
 				return &EnMasseServiceMock{
-					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, error) {
-						return &v1alpha1.User{ID: "id", UserName: userName, Password: "pass"}, nil
+					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, *v12.Secret, error) {
+						return &v1alpha1.User{ID: "id", UserName: userName, Password: "pass"}, &v12.Secret{ObjectMeta: v1.ObjectMeta{Name: "secret"}}, nil
 					},
 				}
 			},
@@ -46,6 +56,13 @@ func TestIntegrator_Integrate(t *testing.T) {
 						return nil, errors.New("unknown request ")
 					},
 				}
+			},
+			SecretClient: func() v13.SecretInterface {
+				fake := &kfake.Clientset{}
+				fake.AddReactor("get", "secrets", func(ktesting.Action) (handled bool, ret runtime.Object, err error) {
+					return true, &v12.Secret{StringData: map[string]string{"user": "user", "pass": "pass"}}, nil
+				})
+				return fake.CoreV1().Secrets("test")
 			},
 			ExpectError: false,
 			Validate: func(t *testing.T, mock *EnMasseServiceMock, mock2 *httpRequesterMock, integration *v1alpha1.Integration) {
@@ -66,13 +83,17 @@ func TestIntegrator_Integrate(t *testing.T) {
 			Integration: validIntegration("test", "amqp", "fuse", "enmasse", map[string]string{}),
 			EnMasseService: func() EnMasseService {
 				return &EnMasseServiceMock{
-					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, error) {
-						return nil, errors.New("failed to create the user")
+					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, *v12.Secret, error) {
+						return nil, nil, errors.New("failed to create the user")
 					},
 				}
 			},
 			HttpRequester: func() httpRequester {
 				return &httpRequesterMock{}
+			},
+			SecretClient: func() v13.SecretInterface {
+				fake := &kfake.Clientset{}
+				return fake.CoreV1().Secrets("test")
 			},
 			ExpectError: true,
 			Validate: func(t *testing.T, mock *EnMasseServiceMock, mock2 *httpRequesterMock, integration *v1alpha1.Integration) {
@@ -93,8 +114,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 			Integration: validIntegration("test", "amqp", "fuse", "enmasse", map[string]string{}),
 			EnMasseService: func() EnMasseService {
 				return &EnMasseServiceMock{
-					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, error) {
-						return &v1alpha1.User{ID: "id", UserName: userName, Password: "pass"}, nil
+					CreateUserFunc: func(userName string, realm string) (*v1alpha1.User, *v12.Secret, error) {
+						return &v1alpha1.User{ID: "id", UserName: userName, Password: "pass"}, &v12.Secret{ObjectMeta: v1.ObjectMeta{Name: "secret"}}, nil
 					},
 				}
 			},
@@ -111,6 +132,13 @@ func TestIntegrator_Integrate(t *testing.T) {
 						return nil, errors.New("unknown request ")
 					},
 				}
+			},
+			SecretClient: func() v13.SecretInterface {
+				fake := &kfake.Clientset{}
+				fake.AddReactor("get", "secrets", func(ktesting.Action) (handled bool, ret runtime.Object, err error) {
+					return true, &v12.Secret{StringData: map[string]string{"user": "user", "pass": "pass"}}, nil
+				})
+				return fake.CoreV1().Secrets("test")
 			},
 			ExpectError: true,
 			Validate: func(t *testing.T, mock *EnMasseServiceMock, mock2 *httpRequesterMock, integration *v1alpha1.Integration) {
@@ -132,8 +160,8 @@ func TestIntegrator_Integrate(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			enmasseMock := tc.EnMasseService()
 			httpMock := tc.HttpRequester()
-			cc := NewConnectionCruder(httpMock, "test", "satoken", "sauser")
-			integreator := NewIntegrator(enmasseMock, cc)
+			cc := client.New(httpMock, tc.SecretClient(), "test", "satoken", "sauser")
+			integreator := NewAddressSpaceIntegrator(enmasseMock, cc)
 			ctx := context.TODO()
 			integration, err := integreator.Integrate(ctx, tc.Integration)
 			if tc.ExpectError && err == nil {
@@ -264,8 +292,8 @@ func TestIntegrator_DisIntegrate(t *testing.T) {
 			enmasseSvc := tc.EnMasseService()
 			httpRequester := tc.HttpRequester()
 			ctx := context.TODO()
-			cc := NewConnectionCruder(httpRequester, "test", "satoken", "sauser")
-			disintegrator := NewIntegrator(enmasseSvc, cc)
+			cc := client.New(httpRequester, nil, "test", "satoken", "sauser")
+			disintegrator := NewAddressSpaceIntegrator(enmasseSvc, cc)
 			it, err := disintegrator.DisIntegrate(ctx, tc.Integration)
 			if tc.ExpectError && err == nil {
 				t.Fatal("expected an error but got none")

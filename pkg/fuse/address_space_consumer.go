@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	syndesis "github.com/integr8ly/integration-controller/pkg/apis/syndesis/v1alpha1"
+
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/api/core/v1"
@@ -79,7 +81,7 @@ func (c *AddressSpaceConsumer) convertToAddressSpace(o runtime.Object) (*enmasse
 	}
 }
 
-func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, namespace string, enabled bool) error {
+func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, enabled bool) error {
 	logrus.Info("create available integration for fuses")
 
 	as, err := c.convertToAddressSpace(o)
@@ -104,7 +106,7 @@ func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, name
 		for _, endPointStatus := range as.Status.EndPointStatuses {
 			if endPointStatus.Name == "messaging" {
 				ingrtn := v1alpha1.NewIntegration(c.integrationName(as))
-				ingrtn.ObjectMeta.Namespace = namespace
+				ingrtn.ObjectMeta.Namespace = c.watchNS
 				ingrtn.Spec.Client = s.Name
 				objectMeta := o.(v12.ObjectMetaAccessor).GetObjectMeta()
 				ingrtn.Status.DiscoveryResource = v1alpha1.DiscoveryResource{Namespace: objectMeta.GetNamespace(), Name: objectMeta.GetName(), GroupVersionKind: o.GetObjectKind().GroupVersionKind()}
@@ -135,7 +137,7 @@ func (c *AddressSpaceConsumer) CreateAvailableIntegration(o runtime.Object, name
 	return errs
 }
 
-func (c *AddressSpaceConsumer) RemoveAvailableIntegration(o runtime.Object, namespace string) error {
+func (c *AddressSpaceConsumer) RemoveAvailableIntegration(o runtime.Object) error {
 	logrus.Info("delete available integration called for fuse")
 	// get an integration with that name
 	as, err := c.convertToAddressSpace(o)
@@ -145,7 +147,7 @@ func (c *AddressSpaceConsumer) RemoveAvailableIntegration(o runtime.Object, name
 	name := c.integrationName(as)
 	ingrtn := v1alpha1.NewIntegration(name)
 	ingrtn.ObjectMeta.Name = name
-	ingrtn.ObjectMeta.Namespace = namespace
+	ingrtn.ObjectMeta.Namespace = c.watchNS
 	if err := c.integrationCruder.Get(ingrtn); err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -159,7 +161,7 @@ func (c *AddressSpaceConsumer) integrationName(o *enmasse.AddressSpace) string {
 	return "enmasse-" + o.Name + "-to-fuse"
 }
 
-//go:generate moq -out crudler_test.go . Crudler
+//go:generate moq -out crudler_mock_test.go . Crudler
 type Crudler interface {
 	List(namespace string, o sdk.Object, option ...sdk.ListOption) error
 	Get(into sdk.Object, opts ...sdk.GetOption) error
@@ -168,8 +170,13 @@ type Crudler interface {
 	Update(object sdk.Object) error
 }
 
-//go:generate moq -out fuse_connection_crudler_test.go . FuseConnectionCruder
-type FuseConnectionCruder interface {
-	CreateConnection(connectionType, connectionName, username, password, url string) (string, error)
-	DeleteConnection(connectionType, connectionID string) error
+//go:generate moq -out fuse_client_test.go . FuseClient
+type FuseClient interface {
+	// TODO perhaps should take a cutomisation object
+	CreateCustomisation(c *syndesis.Connection) (*syndesis.Connection, error)
+	DeleteConnector(c *syndesis.Connection) error
+	ConnectionExists(c *syndesis.Connection) (bool, error)
+	CreateConnection(c *syndesis.Connection) (*syndesis.Connection, error)
+	UpdateConnection(c *syndesis.Connection) (*syndesis.Connection, error)
+	DeleteConnection(c *syndesis.Connection) error
 }

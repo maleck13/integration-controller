@@ -30,6 +30,13 @@ setup:
 	@go get github.com/kisielk/errcheck
 	@echo setup complete run make build deploy to build and deploy the operator to a local cluster
 
+.PHONY: k8sservice-integration
+k8sservice-integration:
+#install syndesis in a namesapce
+	-oc create -f https://raw.githubusercontent.com/syndesisio/syndesis/release-work-1.5.0.fuse-720/install/operator/deploy/syndesis-crd.yml
+	-oc create -f https://raw.githubusercontent.com/syndesisio/syndesis/release-work-1.5.0.fuse-720/install/operator/deploy/syndesis-operator.yml -n ${NAMESPACE}
+	-oc create -f https://raw.githubusercontent.com/syndesisio/syndesis/release-work-1.5.0.fuse-720/install/operator/deploy/syndesis.yml -n ${NAMESPACE}
+	@echo 'run oc port-forward <syndesis server pod> 8145:8080'
 
 .PHONY: build-image
 build-image:
@@ -63,12 +70,13 @@ deploy:
 .PHONY: install
 install: install_crds
 	-oc new-project $(NAMESPACE)
+	-oc new-project $(USER_NAMESPACE)
 	-oc create -f deploy/enmasse/enmasse-cluster-role.yaml
 	-oc create -f deploy/applications/route-services-integration-cluster-role.yaml
 	-oc create -f deploy/sa.yaml -n $(NAMESPACE)
 	-oc create -f deploy/rbac.yaml -n $(NAMESPACE)
 	-cat deploy/enmasse/enmasse-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n enmasse -f -
-	-cat deploy/applications/route-services-integration-cluster-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n $(USER_NAMESPACE) -f -
+	-cat deploy/applications/route-services-integration-role-binding.yaml | sed -e 's/FUSE_NAMESPACE/$(NAMESPACE)/g' | oc create -n $(USER_NAMESPACE) -f -
 
 .PHONY: install_crds
 install_crds:

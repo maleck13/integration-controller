@@ -32,3 +32,12 @@ make run SA_TOKEN=$(oc sa get-token integration-controller)
 ```
 
 Depending on the type of integration your are working on, you may need to [port forward pods](https://docs.openshift.com/enterprise/3.0/dev_guide/port_forwarding.html) to your local machine
+
+
+To work on just the k8s service to fuse online integration you can run
+``` 
+make install NAMESPACE=my-managed-services USER_NAMESPACE=myproject
+make k8sservice-integration NAMESPACE=my-managed-services USER_NAMESPACE=myproject
+export LOCAL_DEV=true
+make run SA_TOKEN=$(oc sa get-token integration-controller -n project-services) NAMESPACE=project-services USER_NAMESPACE=project1
+``` 

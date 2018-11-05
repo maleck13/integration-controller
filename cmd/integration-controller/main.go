@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/integr8ly/integration-controller/pkg/fuse"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/integr8ly/integration-controller/pkg/k8s"
@@ -18,7 +20,7 @@ import (
 
 	"github.com/integr8ly/integration-controller/pkg/consumer"
 
-	"github.com/integr8ly/integration-controller/pkg/fuse"
+	fuseClient "github.com/integr8ly/integration-controller/pkg/fuse/client"
 
 	"github.com/integr8ly/integration-controller/pkg/enmasse"
 
@@ -138,12 +140,12 @@ func main() {
 
 	// add fuse integrations
 	{
-		fuseConnectionCruder := fuse.NewConnectionCruder(httpClient, namespace, saToken, "integration-controller")
-		i := fuse.NewIntegrator(enmasseService, fuseConnectionCruder)
+		fuseConnectionCruder := fuseClient.New(httpClient, k8Client.CoreV1().Secrets(namespace), namespace, saToken, "integration-controller")
+		i := fuse.NewAddressSpaceIntegrator(enmasseService, fuseConnectionCruder)
 		if err := integrationRegistery.RegisterIntegrator(i); err != nil {
 			panic(err)
 		}
-		httpI := fuse.NewHTTPIntegrator(k8sCruder, fuseConnectionCruder)
+		httpI := fuse.NewHTTPIntegrator(k8sCruder, fuseConnectionCruder, namespace)
 		if err := integrationRegistery.RegisterIntegrator(httpI); err != nil {
 			panic(err)
 		}
@@ -163,21 +165,21 @@ func main() {
 		sdk.Watch("v1", "ConfigMap", enmasseNS, resync, sdk.WithLabelSelector("type=address-space"))
 		logrus.Infof("EnMasse integrations enabled. Watching %s, %s, %s, %d", "", "ConfigMap", namespace, resyncPeriod)
 	}
-
+	// watch for integrations
 	sdk.Watch(resource, kind, namespace, resync)
 	logrus.Infof("Watching %s, %s, %sx, %d", resource, kind, namespace, resyncPeriod)
 
 	//refactor seems redundant
 	userNSResoures := []schema.GroupVersionKind{
 		{
-			Group:   "route.openshift.io",
-			Version: "v1",
-			Kind:    "Route",
-		},
-		{
 			Group:   "",
 			Version: "v1",
 			Kind:    "Service",
+		},
+		{
+			Group:   "integreatly.org",
+			Version: "v1alpha1",
+			Kind:    "Integration",
 		},
 	}
 

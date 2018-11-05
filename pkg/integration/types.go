@@ -27,9 +27,9 @@ type Consumer interface {
 	// Validate will check the runtime object being consumed is valid for creating the integration
 	Validate(object runtime.Object) error
 	// CreateAvailableIntegration sets up and creates a new integration object
-	CreateAvailableIntegration(object runtime.Object, targetNS string, enabled bool) error
+	CreateAvailableIntegration(object runtime.Object, enabled bool) error
 	// RemoveAvailableIntegration removed the integration object created by CreateAvailableIntegration
-	RemoveAvailableIntegration(object runtime.Object, targetNS string) error
+	RemoveAvailableIntegration(object runtime.Object) error
 	// GVKs announces to the registry which objects this consumer is interested in
 	GVKs() []schema.GroupVersionKind
 }
